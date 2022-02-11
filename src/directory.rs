@@ -14,8 +14,8 @@ pub enum ObjectType {
 #[derive(Clone, Derivative, Copy)]
 #[derivative(Debug)]
 pub enum NodeColor {
-    RED,
-    BLACK,
+    Red,
+    Black,
 }
 
 /**
@@ -296,9 +296,9 @@ impl DirectoryEntry {
         //drop the null terminator
         let _ = name.pop();
         let color = match raw_directory_entry.color_flag {
-            constants::NODE_COLOR_RED => Ok(NodeColor::RED),
-            constants::NODE_COLOR_BLACK => Ok(NodeColor::BLACK),
-            anything_else @ _ => Err(Error::OleInvalidDirectoryEntry(
+            constants::NODE_COLOR_RED => Ok(NodeColor::Red),
+            constants::NODE_COLOR_BLACK => Ok(NodeColor::Black),
+            anything_else  => Err(Error::OleInvalidDirectoryEntry(
                 "node_color",
                 format!("invalid value: {:x?}", anything_else),
             )),
@@ -364,7 +364,7 @@ impl DirectoryEntry {
                 (ObjectType::Storage, location) if location != [0x00; 4] => {
                     Err(Error::OleInvalidDirectoryEntry(
                         "starting_sector_location",
-                        format!("starting sector location non-zero for storage object type"),
+                        "starting sector location non-zero for storage object type".to_string(),
                     ))
                 }
                 (ObjectType::Storage, _zero) => Ok(None),

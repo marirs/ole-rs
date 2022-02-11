@@ -276,7 +276,7 @@ impl OleFile {
 
         loop {
             next_directory_index =
-                self.sector_allocation_table[next_directory_index as usize].clone();
+                self.sector_allocation_table[next_directory_index as usize];
             if next_directory_index == constants::CHAIN_END {
                 break;
             } else {
@@ -337,7 +337,7 @@ impl OleFile {
             } else {
                 raw_mini_stream_data.extend(self.sectors[next_sector as usize].iter());
             }
-            next_sector = self.sector_allocation_table[next_sector as usize].clone();
+            next_sector = self.sector_allocation_table[next_sector as usize];
         }
         raw_mini_stream_data.truncate(mini_stream_size as usize);
 
