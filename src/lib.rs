@@ -75,11 +75,15 @@ impl OleFile {
         //! ## Example usage
         //! ```rust
         //! use ole::OleFile;
-        //! let file = "data/oledoc1.doc_";
         //!
-        //! let res = OleFile::from_file_blocking(file).expect("file not found");
-        //! let streams = res.list_streams();
-        //! assert!(!streams.is_empty());
+        //! #[tokio::main]
+        //! async fn main() {
+        //!     let file = "data/oledoc1.doc_";
+        //!
+        //!     let res = OleFile::from_file(file).await.expect("file not found");
+        //!     let streams = res.list_streams();
+        //!     assert!(!streams.is_empty());
+        //! }
         //! ```
         self.directory_entries
             .iter()
