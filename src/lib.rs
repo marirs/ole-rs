@@ -34,12 +34,36 @@ pub struct OleFile {
 impl OleFile {
     #[cfg(feature = "blocking")]
     pub fn from_file_blocking<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
+        //! Read from a OLE file and parse it
+        //!
+        //! ## Example usage
+        //! ```rust
+        //! use ole::OleFile;
+        //! let file = "data/oledoc1.doc_";
+        //!
+        //! let res = OleFile::from_file_blocking(file);
+        //! assert!(res.is_ok())
+        //! ```
         let rt = tokio::runtime::Runtime::new()?;
         let f = rt.block_on(tokio::fs::File::open(file))?;
         rt.block_on(Self::parse(f))
     }
     #[cfg(feature = "async")]
     pub async fn from_file<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
+        //! Read from a OLE file and parse it
+        //!
+        //! ## Example usage
+        //! ```rust
+        //! use ole::OleFile;
+        //!
+        //! #[tokio::main]
+        //! async fn main() {
+        //!     let file = "data/oledoc1.doc_";
+        //!
+        //!     let res = OleFile::from_file(file).await;
+        //!     assert!(res.is_ok());
+        //! }
+        //! ```
         let f = tokio::fs::File::open(file).await?;
         Self::parse(f).await
     }
@@ -50,9 +74,7 @@ impl OleFile {
     {
         // read the header
         let raw_file_header = parse_raw_header(&mut read).await?;
-        // println!("raw_file_header: {:#?}", raw_file_header);
         let file_header = OleHeader::from_raw(raw_file_header);
-        // println!("file_header: {:#?}", file_header);
         let sector_size = file_header.sector_size as usize;
 
         //we have to read the remainder of the header if the sector size isn't what we tried to read
@@ -99,7 +121,6 @@ impl OleFile {
             }
         }
 
-        // println!("read_sectors: {}", sectors.len());
         let mut self_to_init = OleFile {
             header: file_header,
             sectors,
@@ -119,6 +140,17 @@ impl OleFile {
     }
 
     pub fn list_streams(&self) -> Vec<String> {
+        //! List the streams from a parsed OLE file
+        //!
+        //! ## Example usage
+        //! ```rust
+        //! use ole::OleFile;
+        //! let file = "data/oledoc1.doc_";
+        //!
+        //! let res = OleFile::from_file_blocking(file).expect("file not found");
+        //! let streams = res.list_streams();
+        //! assert!(!streams.is_empty());
+        //! ```
         self.directory_entries
             .iter()
             .filter_map(|entry| {
@@ -181,7 +213,6 @@ impl OleFile {
                         next_sector = self.sector_allocation_table[next_sector as usize];
                     }
                 }
-                // println!("data.len(): {}", data.len());
                 return Ok(data);
             }
         }
@@ -190,7 +221,6 @@ impl OleFile {
 
     fn initialize_sector_allocation_table(&mut self) -> Result<()> {
         for sector_index in self.header.sector_allocation_table_head.iter() {
-            // println!("sector_index: {:#x?}", *sector_index);
             if *sector_index == constants::UNALLOCATED_SECTOR
                 || *sector_index == constants::CHAIN_END
             {
@@ -220,7 +250,6 @@ impl OleFile {
         let mut next_index = self.header.short_sector_allocation_table_first_sector;
         let mut short_sector_allocation_table_raw_data: Vec<u8> = vec![];
         loop {
-            // println!("next_index: {:#x?}", next_index);
             if next_index == constants::CHAIN_END {
                 break;
             } else {
@@ -230,15 +259,11 @@ impl OleFile {
             next_index = self.sector_allocation_table[next_index as usize];
         }
 
-        // println!("short_sector_allocation_table_raw_data: {}", short_sector_allocation_table_raw_data.len());
-
         self.short_sector_allocation_table.extend(
             short_sector_allocation_table_raw_data
                 .chunks_exact(4)
                 .map(|quad| u32::from_le_bytes([quad[0], quad[1], quad[2], quad[3]])),
         );
-
-        // println!("short_sector_allocation_table: {:#x?}", self.short_sector_allocation_table);
 
         Ok(())
     }
@@ -251,7 +276,6 @@ impl OleFile {
         loop {
             next_directory_index =
                 self.sector_allocation_table[next_directory_index as usize].clone();
-            // println!("next: {:x?}", next);
             if next_directory_index == constants::CHAIN_END {
                 break;
             } else {
@@ -284,7 +308,6 @@ impl OleFile {
             .chunks(constants::SIZE_OF_DIRECTORY_ENTRY)
             .enumerate()
         {
-            // println!("unparsed_entry: {}", unparsed_entry.len());
             let raw_directory_entry = DirectoryEntryRaw::parse(unparsed_entry)?;
             match DirectoryEntry::from_raw(&self.header, raw_directory_entry, index) {
                 Ok(directory_entry) => self.directory_entries.push(directory_entry),
@@ -308,7 +331,6 @@ impl OleFile {
 
         let mut raw_mini_stream_data: Vec<u8> = vec![];
         loop {
-            // println!("next_sector: {:x?}", next_sector);
             if next_sector == constants::CHAIN_END {
                 break;
             } else {
@@ -317,7 +339,6 @@ impl OleFile {
             next_sector = self.sector_allocation_table[next_sector as usize].clone();
         }
         raw_mini_stream_data.truncate(mini_stream_size as usize);
-        // println!("raw_mini_stream_data {:#?}", raw_mini_stream_data.len());
 
         //mini streams are sectors of 64 bytes, and the size is guaranteed to be an exact multiple.
         raw_mini_stream_data.chunks_exact(64).for_each(|chunk| {
