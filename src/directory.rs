@@ -1,4 +1,4 @@
-use crate::{constants, error::OleError, header::OleHeader};
+use crate::{constants, error::Error, header::OleHeader, Result};
 use chrono::NaiveDateTime;
 use derivative::Derivative;
 use std::array::TryFromSliceError;
@@ -146,84 +146,84 @@ pub struct DirectoryEntryRaw {
 }
 
 impl DirectoryEntryRaw {
-    pub fn parse(unparsed_entry: &[u8]) -> Result<Self, OleError> {
+    pub fn parse(unparsed_entry: &[u8]) -> Result<Self> {
         let name: [u8; 64] =
             unparsed_entry[0..64]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("name", err.to_string())
+                    Error::OleInvalidDirectoryEntry("name", err.to_string())
                 })?;
         let name_len: [u8; 2] =
             unparsed_entry[64..66]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("name_len", err.to_string())
+                    Error::OleInvalidDirectoryEntry("name_len", err.to_string())
                 })?;
         let object_type: [u8; 1] =
             unparsed_entry[66..67]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("object_type", err.to_string())
+                    Error::OleInvalidDirectoryEntry("object_type", err.to_string())
                 })?;
         let color_flag: [u8; 1] =
             unparsed_entry[67..68]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("color_flag", err.to_string())
+                    Error::OleInvalidDirectoryEntry("color_flag", err.to_string())
                 })?;
         let left_sibling_id: [u8; 4] =
             unparsed_entry[68..72]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("left_sibling_id", err.to_string())
+                    Error::OleInvalidDirectoryEntry("left_sibling_id", err.to_string())
                 })?;
         let right_sibling_id: [u8; 4] =
             unparsed_entry[72..76]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("right_sibling_id", err.to_string())
+                    Error::OleInvalidDirectoryEntry("right_sibling_id", err.to_string())
                 })?;
         let child_id: [u8; 4] =
             unparsed_entry[76..80]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("child_id", err.to_string())
+                    Error::OleInvalidDirectoryEntry("child_id", err.to_string())
                 })?;
         let class_id: [u8; 16] =
             unparsed_entry[80..96]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("class_id", err.to_string())
+                    Error::OleInvalidDirectoryEntry("class_id", err.to_string())
                 })?;
         let state_bits: [u8; 4] =
             unparsed_entry[96..100]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("state_bits", err.to_string())
+                    Error::OleInvalidDirectoryEntry("state_bits", err.to_string())
                 })?;
         let creation_time: [u8; 8] =
             unparsed_entry[100..108]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("creation_time", err.to_string())
+                    Error::OleInvalidDirectoryEntry("creation_time", err.to_string())
                 })?;
         let modification_time: [u8; 8] =
             unparsed_entry[108..116]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("modification_time", err.to_string())
+                    Error::OleInvalidDirectoryEntry("modification_time", err.to_string())
                 })?;
         let starting_sector_location: [u8; 4] =
             unparsed_entry[116..120]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("starting_sector_location", err.to_string())
+                    Error::OleInvalidDirectoryEntry("starting_sector_location", err.to_string())
                 })?;
         let stream_size: [u8; 8] =
             unparsed_entry[120..128]
                 .try_into()
                 .map_err(|err: TryFromSliceError| {
-                    OleError::InvalidDirectoryEntry("stream_size", err.to_string())
+                    Error::OleInvalidDirectoryEntry("stream_size", err.to_string())
                 })?;
 
         Ok(DirectoryEntryRaw {
@@ -272,16 +272,16 @@ impl DirectoryEntry {
         ole_file_header: &OleHeader,
         raw_directory_entry: DirectoryEntryRaw,
         index: usize,
-    ) -> Result<Self, OleError> {
+    ) -> Result<Self> {
         // first, check to see if the directory entry is even allocated...
         let object_type = match raw_directory_entry.object_type {
             constants::OBJECT_TYPE_UNKNOWN_OR_UNALLOCATED => {
-                Err(OleError::UnknownOrUnallocatedDirectoryEntry)
+                Err(Error::OleUnknownOrUnallocatedDirectoryEntry)
             }
             constants::OBJECT_TYPE_ROOT_STORAGE => Ok(ObjectType::RootStorage),
             constants::OBJECT_TYPE_STORAGE => Ok(ObjectType::Storage),
             constants::OBJECT_TYPE_STREAM => Ok(ObjectType::Stream),
-            anything_else => Err(OleError::InvalidDirectoryEntry(
+            anything_else => Err(Error::OleInvalidDirectoryEntry(
                 "object_type",
                 format!("invalid value: {:x?}", anything_else),
             )),
@@ -298,7 +298,7 @@ impl DirectoryEntry {
         let color = match raw_directory_entry.color_flag {
             constants::NODE_COLOR_RED => Ok(NodeColor::RED),
             constants::NODE_COLOR_BLACK => Ok(NodeColor::BLACK),
-            anything_else @ _ => Err(OleError::InvalidDirectoryEntry(
+            anything_else @ _ => Err(Error::OleInvalidDirectoryEntry(
                 "node_color",
                 format!("invalid value: {:x?}", anything_else),
             )),
@@ -309,7 +309,7 @@ impl DirectoryEntry {
             potential_value => {
                 let potential_value = u32::from_le_bytes(potential_value);
                 if potential_value > constants::MAX_REG_STREAM_ID_VALUE {
-                    Err(OleError::InvalidDirectoryEntry(
+                    Err(Error::OleInvalidDirectoryEntry(
                         "left_sibling_id",
                         format!("invalid value: {:x?}", potential_value),
                     ))
@@ -323,7 +323,7 @@ impl DirectoryEntry {
             potential_value => {
                 let potential_value = u32::from_le_bytes(potential_value);
                 if potential_value > constants::MAX_REG_STREAM_ID_VALUE {
-                    Err(OleError::InvalidDirectoryEntry(
+                    Err(Error::OleInvalidDirectoryEntry(
                         "right_sibling_id",
                         format!("invalid value: {:x?}", potential_value),
                     ))
@@ -337,7 +337,7 @@ impl DirectoryEntry {
             potential_value => {
                 let potential_value = u32::from_le_bytes(potential_value);
                 if potential_value > constants::MAX_REG_STREAM_ID_VALUE {
-                    Err(OleError::InvalidDirectoryEntry(
+                    Err(Error::OleInvalidDirectoryEntry(
                         "child_id",
                         format!("invalid value: {:x?}", potential_value),
                     ))
@@ -362,7 +362,7 @@ impl DirectoryEntry {
         let starting_sector_location =
             match (object_type, raw_directory_entry.starting_sector_location) {
                 (ObjectType::Storage, location) if location != [0x00; 4] => {
-                    Err(OleError::InvalidDirectoryEntry(
+                    Err(Error::OleInvalidDirectoryEntry(
                         "starting_sector_location",
                         format!("starting sector location non-zero for storage object type"),
                     ))
@@ -370,7 +370,7 @@ impl DirectoryEntry {
                 (ObjectType::Storage, _zero) => Ok(None),
                 //the spec says "if the mini stream exists", so i don't think i can do this.
                 // (ObjectType::RootStorage, location) if location == [0x00; 4] => {
-                //     Err(OleError::InvalidDirectoryEntry(
+                //     Err(Error::InvalidDirectoryEntry(
                 //         "starting_sector_location",
                 //         format!("missing starting sector location for root storage object type"),
                 //     ))
@@ -404,12 +404,12 @@ impl DirectoryEntry {
         };
         let stream_size = u64::from_le_bytes(stream_size);
         if stream_size != 0 && object_type == ObjectType::Storage {
-            return Err(OleError::InvalidDirectoryEntry(
+            return Err(Error::OleInvalidDirectoryEntry(
                 "stream_size",
                 "storage object type has non-zero stream size".to_string(),
             ));
         } else if object_type == ObjectType::RootStorage && stream_size % 64 != 0 {
-            return Err(OleError::InvalidDirectoryEntry(
+            return Err(Error::OleInvalidDirectoryEntry(
                 "stream_size",
                 "root storage object type must have stream size % 64 === 0".to_string(),
             ));

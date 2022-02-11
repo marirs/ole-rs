@@ -1,6 +1,7 @@
 use crate::{
     constants::{self, Readable},
-    error::{HeaderErrorType, OleError},
+    error::{HeaderErrorType, Error},
+    Result,
 };
 use derivative::Derivative;
 use std::array::TryFromSliceError;
@@ -139,14 +140,14 @@ pub struct RawFileHeader {
     #[derivative(Debug = "ignore")]
     sector_allocation_table_head: Vec<u32>,
 }
-pub async fn parse_raw_header<R>(read: &mut R) -> Result<RawFileHeader, OleError>
+pub async fn parse_raw_header<R>(read: &mut R) -> Result<RawFileHeader>
 where
     R: Readable,
 {
     let mut header = [0u8; constants::HEADER_LENGTH];
     let bytes_read = read.read(&mut header).await?;
     if bytes_read != constants::HEADER_LENGTH {
-        return Err(OleError::InvalidHeader(HeaderErrorType::NotEnoughBytes(
+        return Err(Error::OleInvalidHeader(HeaderErrorType::NotEnoughBytes(
             constants::HEADER_LENGTH,
             bytes_read,
         )));
@@ -158,11 +159,11 @@ where
     let _: [u8; 8] = (&header[0..8])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing("signature", err.to_string()))
+            Error::OleInvalidHeader(HeaderErrorType::Parsing("signature", err.to_string()))
         })
         .and_then(|signature: [u8; 8]| {
             if signature != constants::MAGIC_BYTES {
-                Err(OleError::InvalidHeader(HeaderErrorType::WrongMagicBytes(
+                Err(Error::OleInvalidHeader(HeaderErrorType::WrongMagicBytes(
                     signature.into(),
                 )))
             } else {
@@ -175,14 +176,14 @@ where
     let _: [u8; 16] = (&header[8..24])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "class_identifier",
                 err.to_string(),
             ))
         })
         .and_then(|class_identifier| {
             if class_identifier != [0u8; 16] {
-                Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "class_identifier",
                     "non-zero entries in class_identifier field".to_string(),
                 )))
@@ -195,11 +196,11 @@ where
     let minor_version: [u8; 2] = (&header[24..26])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing("minor_version", err.to_string()))
+            Error::OleInvalidHeader(HeaderErrorType::Parsing("minor_version", err.to_string()))
         })
         .and_then(|minor_version| {
             if minor_version != constants::CORRECT_MINOR_VERSION {
-                Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "minor_version",
                     format!("incorrect minor version {:x?}", minor_version),
                 )))
@@ -213,11 +214,11 @@ where
     let major_version: [u8; 2] = (&header[26..28])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing("major_version", err.to_string()))
+            Error::OleInvalidHeader(HeaderErrorType::Parsing("major_version", err.to_string()))
         })
         .and_then(|major_version: [u8; 2]| match major_version {
             constants::MAJOR_VERSION_3 | constants::MAJOR_VERSION_4 => Ok(major_version),
-            _ => Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+            _ => Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "major_version",
                 format!("incorrect major version {:x?}", major_version),
             ))),
@@ -228,7 +229,7 @@ where
     let _: [u8; 2] = (&header[28..30])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "byte_order_identifier",
                 err.to_string(),
             ))
@@ -236,7 +237,7 @@ where
         .and_then(
             |byte_order_identifier: [u8; 2]| match byte_order_identifier {
                 [0xFE, 0xFF] => Ok(byte_order_identifier),
-                _ => Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+                _ => Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "byte_order_identifier",
                     format!(
                         "incorrect byte order identifier {:x?}",
@@ -253,7 +254,7 @@ where
     let sector_size: [u8; 2] = (&header[30..32])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing("sector_size", err.to_string()))
+            Error::OleInvalidHeader(HeaderErrorType::Parsing("sector_size", err.to_string()))
         })
         .and_then(|sector_size: [u8; 2]| match major_version {
             constants::MAJOR_VERSION_3 if sector_size == constants::SECTOR_SIZE_VERSION_3 => {
@@ -262,7 +263,7 @@ where
             constants::MAJOR_VERSION_4 if sector_size == constants::SECTOR_SIZE_VERSION_4 => {
                 Ok(sector_size)
             }
-            _ => Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+            _ => Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "sector_size",
                 format!(
                     "incorrect sector size {:x?} for major version {:x?}",
@@ -276,14 +277,14 @@ where
     let mini_sector_size: [u8; 2] = (&header[32..34])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "mini_sector_size",
                 err.to_string(),
             ))
         })
         .and_then(|mini_sector_size: [u8; 2]| match mini_sector_size {
             [0x06, 0x00] => Ok(mini_sector_size),
-            _ => Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+            _ => Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "mini_sector_size",
                 format!("incorrect mini sector size {:x?}", mini_sector_size),
             ))),
@@ -291,11 +292,11 @@ where
     let _: [u8; 6] = (&header[34..40])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing("first_reserved", err.to_string()))
+            Error::OleInvalidHeader(HeaderErrorType::Parsing("first_reserved", err.to_string()))
         })
         .and_then(|reserved| {
             if reserved != [0u8; 6] {
-                Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "first_reserved",
                     "non-zero entries in reserved field".to_string(),
                 )))
@@ -309,14 +310,14 @@ where
     let directory_sectors_len: [u8; 4] = (&header[40..44])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "directory_sectors_len",
                 err.to_string(),
             ))
         })
         .and_then(|directory_sectors_len| {
             if directory_sectors_len != [0u8; 4] && major_version == constants::MAJOR_VERSION_3 {
-                Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "directory_sectors_len",
                     "non-zero number of directory sectors with major version 3".to_string(),
                 )))
@@ -328,7 +329,7 @@ where
         (&header[44..48])
             .try_into()
             .map_err(|err: TryFromSliceError| {
-                OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "sector_allocation_table_len",
                     err.to_string(),
                 ))
@@ -337,7 +338,7 @@ where
         (&header[48..52])
             .try_into()
             .map_err(|err: TryFromSliceError| {
-                OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "sector_allocation_table_first_sector",
                     err.to_string(),
                 ))
@@ -345,7 +346,7 @@ where
     let _: [u8; 4] = (&header[52..56])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "transaction_signature_number",
                 err.to_string(),
             ))
@@ -357,14 +358,14 @@ where
     let standard_stream_min_size: [u8; 4] = (&header[56..60])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "standard_stream_min_size",
                 err.to_string(),
             ))
         })
         .and_then(|standard_stream_min_size| {
             if standard_stream_min_size != constants::CORRECT_STANDARD_STREAM_MIN_SIZE {
-                Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "standard_stream_min_size",
                     format!(
                         "incorrect standard_stream_min_size {:x?}",
@@ -378,7 +379,7 @@ where
     let short_sector_allocation_table_first_sector: [u8; 4] = (&header[60..64])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "short_sector_allocation_table_first_sector",
                 err.to_string(),
             ))
@@ -387,7 +388,7 @@ where
         (&header[64..68])
             .try_into()
             .map_err(|err: TryFromSliceError| {
-                OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "short_sector_allocation_table_len",
                     err.to_string(),
                 ))
@@ -395,7 +396,7 @@ where
     let master_sector_allocation_table_first_sector: [u8; 4] = (&header[68..72])
         .try_into()
         .map_err(|err: TryFromSliceError| {
-            OleError::InvalidHeader(HeaderErrorType::Parsing(
+            Error::OleInvalidHeader(HeaderErrorType::Parsing(
                 "master_sector_allocation_table_first_sector",
                 err.to_string(),
             ))
@@ -404,7 +405,7 @@ where
         (&header[72..76])
             .try_into()
             .map_err(|err: TryFromSliceError| {
-                OleError::InvalidHeader(HeaderErrorType::Parsing(
+                Error::OleInvalidHeader(HeaderErrorType::Parsing(
                     "master_sector_allocation_table_len",
                     err.to_string(),
                 ))

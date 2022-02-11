@@ -1,7 +1,9 @@
 mod constants;
 mod directory;
-pub mod error;
 mod header;
+
+pub mod error;
+pub type Result<T> = std::result::Result<T, Error>;
 
 use crate::{
     constants::Readable,
@@ -9,8 +11,8 @@ use crate::{
     header::{parse_raw_header, OleHeader},
 };
 use derivative::Derivative;
-use error::{HeaderErrorType, OleError};
 use tokio::io::AsyncReadExt;
+use error::{HeaderErrorType, Error};
 
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
@@ -30,6 +32,90 @@ pub struct OleFile {
 }
 
 impl OleFile {
+    pub fn from_file_blocking<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(Self::from_file(file))
+    }
+
+    pub async fn from_file<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
+        let f = tokio::fs::File::open(file).await?;
+        Self::parse(f).await
+    }
+
+    async fn parse<R>(mut read: R) -> Result<Self>
+        where
+            R: Readable,
+    {
+        // read the header
+        let raw_file_header = parse_raw_header(&mut read).await?;
+        // println!("raw_file_header: {:#?}", raw_file_header);
+        let file_header = OleHeader::from_raw(raw_file_header);
+        // println!("file_header: {:#?}", file_header);
+        let sector_size = file_header.sector_size as usize;
+
+        //we have to read the remainder of the header if the sector size isn't what we tried to read
+        if sector_size > constants::HEADER_LENGTH {
+            let should_read_size = sector_size - constants::HEADER_LENGTH;
+            let mut should_read = vec![0u8; should_read_size];
+            let did_read_size = read.read(&mut should_read).await?;
+            if did_read_size != should_read_size {
+                return Err(Error::OleInvalidHeader(HeaderErrorType::NotEnoughBytes(
+                    should_read_size,
+                    did_read_size,
+                )));
+            } else if should_read != vec![0u8; should_read_size] {
+                return Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
+                    "all bytes must be zero for larger header sizes",
+                    "n/a".to_string(),
+                )));
+            }
+        }
+
+        let mut sectors = vec![];
+        loop {
+            let mut buf = vec![0u8; sector_size];
+            match read.read(&mut buf).await {
+                Ok(actually_read_size) if actually_read_size == sector_size => {
+                    sectors.push((&buf[0..actually_read_size]).to_vec());
+                }
+                Ok(wrong_size) if wrong_size != 0 => {
+                    // TODO: we might have to handle the case where the
+                    //       last sector isn't actually complete. Not sure yet.
+                    //       the spec says the entire file has to be present here,
+                    //       with equal sectors, so I'm doing it this way.
+                    return Err(Error::OleUnexpectedEof(format!(
+                        "short read when parsing sector number: {}",
+                        sectors.len()
+                    )));
+                }
+                Ok(_empty) => {
+                    break;
+                }
+                Err(error) => {
+                    return Err(Error::StdIo(error));
+                }
+            }
+        }
+
+        // println!("read_sectors: {}", sectors.len());
+        let mut self_to_init = OleFile {
+            header: file_header,
+            sectors,
+            sector_allocation_table: vec![],
+            short_sector_allocation_table: vec![],
+            directory_stream_data: vec![],
+            directory_entries: vec![],
+            mini_stream: vec![],
+        };
+
+        self_to_init.initialize_sector_allocation_table()?;
+        self_to_init.initialize_short_sector_allocation_table()?;
+        self_to_init.initialize_directory_stream()?;
+        self_to_init.initialize_mini_stream()?;
+
+        Ok(self_to_init)
+    }
+
     pub fn list_streams(&self) -> Vec<String> {
         self.directory_entries
             .iter()
@@ -43,7 +129,7 @@ impl OleFile {
             .collect()
     }
 
-    pub fn open_stream(&mut self, stream_name: &str) -> Result<Vec<u8>, OleError> {
+    pub fn open_stream(&mut self, stream_name: &str) -> Result<Vec<u8>> {
         let potential_entries = self
             .directory_entries
             .iter()
@@ -97,90 +183,10 @@ impl OleFile {
                 return Ok(data);
             }
         }
-        Err(OleError::DirectoryEntryNotFound)
+        Err(Error::OleDirectoryEntryNotFound)
     }
 
-
-    pub async fn from_file<P: AsRef<std::path::Path>>(file: P) -> Result<Self, OleFile> {
-        let f = tokio::fs::File::open(file)?;
-        Self::parse(f)?
-    }
-
-    async fn parse<R>(mut read: R) -> Result<Self, OleError>
-    where
-        R: Readable,
-    {
-        // read the header
-        let raw_file_header = parse_raw_header(&mut read).await?;
-        // println!("raw_file_header: {:#?}", raw_file_header);
-        let file_header = OleHeader::from_raw(raw_file_header);
-        // println!("file_header: {:#?}", file_header);
-        let sector_size = file_header.sector_size as usize;
-
-        //we have to read the remainder of the header if the sector size isn't what we tried to read
-        if sector_size > constants::HEADER_LENGTH {
-            let should_read_size = sector_size - constants::HEADER_LENGTH;
-            let mut should_read = vec![0u8; should_read_size];
-            let did_read_size = read.read(&mut should_read).await?;
-            if did_read_size != should_read_size {
-                return Err(OleError::InvalidHeader(HeaderErrorType::NotEnoughBytes(
-                    should_read_size,
-                    did_read_size,
-                )));
-            } else if should_read != vec![0u8; should_read_size] {
-                return Err(OleError::InvalidHeader(HeaderErrorType::Parsing(
-                    "all bytes must be zero for larger header sizes",
-                    "n/a".to_string(),
-                )));
-            }
-        }
-
-        let mut sectors = vec![];
-        loop {
-            let mut buf = vec![0u8; sector_size];
-            match read.read(&mut buf).await {
-                Ok(actually_read_size) if actually_read_size == sector_size => {
-                    sectors.push((&buf[0..actually_read_size]).to_vec());
-                }
-                Ok(wrong_size) if wrong_size != 0 => {
-                    // TODO: we might have to handle the case where the
-                    //       last sector isn't actually complete. Not sure yet.
-                    //       the spec says the entire file has to be present here,
-                    //       with equal sectors, so I'm doing it this way.
-                    return Err(OleError::UnexpectedEof(format!(
-                        "short read when parsing sector number: {}",
-                        sectors.len()
-                    )));
-                }
-                Ok(_empty) => {
-                    break;
-                }
-                Err(error) => {
-                    return Err(OleError::StdIo(error));
-                }
-            }
-        }
-
-        // println!("read_sectors: {}", sectors.len());
-        let mut self_to_init = OleFile {
-            header: file_header,
-            sectors,
-            sector_allocation_table: vec![],
-            short_sector_allocation_table: vec![],
-            directory_stream_data: vec![],
-            directory_entries: vec![],
-            mini_stream: vec![],
-        };
-
-        self_to_init.initialize_sector_allocation_table()?;
-        self_to_init.initialize_short_sector_allocation_table()?;
-        self_to_init.initialize_directory_stream()?;
-        self_to_init.initialize_mini_stream()?;
-
-        Ok(self_to_init)
-    }
-
-    fn initialize_sector_allocation_table(&mut self) -> Result<(), OleError> {
+    fn initialize_sector_allocation_table(&mut self) -> Result<()> {
         for sector_index in self.header.sector_allocation_table_head.iter() {
             // println!("sector_index: {:#x?}", *sector_index);
             if *sector_index == constants::UNALLOCATED_SECTOR
@@ -195,14 +201,14 @@ impl OleFile {
         }
 
         if self.header.master_sector_allocation_table_len > 0 {
-            return Err(OleError::CurrentlyUnimplemented(
+            return Err(Error::CurrentlyUnimplemented(
                 "MSAT/DI-FAT unsupported todo impl me".to_string(),
             ));
         }
 
         Ok(())
     }
-    fn initialize_short_sector_allocation_table(&mut self) -> Result<(), OleError> {
+    fn initialize_short_sector_allocation_table(&mut self) -> Result<()> {
         if self.header.short_sector_allocation_table_len == 0
             || self.header.short_sector_allocation_table_first_sector == constants::CHAIN_END
         {
@@ -235,7 +241,7 @@ impl OleFile {
         Ok(())
     }
 
-    fn initialize_directory_stream(&mut self) -> Result<(), OleError> {
+    fn initialize_directory_stream(&mut self) -> Result<()> {
         let mut next_directory_index = self.header.sector_allocation_table_first_sector;
         self.directory_stream_data
             .extend(self.sectors[next_directory_index as usize].iter());
@@ -257,9 +263,9 @@ impl OleFile {
         Ok(())
     }
 
-    fn initialize_directory_entries(&mut self) -> Result<(), OleError> {
+    fn initialize_directory_entries(&mut self) -> Result<()> {
         if self.directory_stream_data.len() % constants::SIZE_OF_DIRECTORY_ENTRY != 0 {
-            return Err(OleError::InvalidDirectoryEntry(
+            return Err(Error::OleInvalidDirectoryEntry(
                 "directory_stream_size",
                 format!(
                     "size of directory stream data is not correct? {}",
@@ -280,14 +286,14 @@ impl OleFile {
             let raw_directory_entry = DirectoryEntryRaw::parse(unparsed_entry)?;
             match DirectoryEntry::from_raw(&self.header, raw_directory_entry, index) {
                 Ok(directory_entry) => self.directory_entries.push(directory_entry),
-                Err(OleError::UnknownOrUnallocatedDirectoryEntry) => continue,
+                Err(Error::OleUnknownOrUnallocatedDirectoryEntry) => continue,
                 Err(anything_else) => return Err(anything_else),
             }
         }
 
         Ok(())
     }
-    fn initialize_mini_stream(&mut self) -> Result<(), OleError> {
+    fn initialize_mini_stream(&mut self) -> Result<()> {
         let (mut next_sector, mini_stream_size) = {
             let root_entry = &self.directory_entries[0];
             match root_entry.starting_sector_location {
