@@ -1,0 +1,29 @@
+[package]
+name = "ole"
+version = "0.1.0"
+description = "Parser to analyze MS OLE2 files (Structured Storage, Compound File Binary Format) and MS Office documents."
+authors = ["Marirs <marirs@gmail.com>"]
+keywords = ["ole2", "compound", "parser"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4"
+derivative = "2.2"
+epochs = "0.2"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+
+[lib]
+name = "ole"
+path = "src/lib.rs"
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+debug-assertions = false
+debug = false
+opt-level = 3
+lto = true
