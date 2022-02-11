@@ -1,6 +1,6 @@
 use crate::{
     constants::{self, Readable},
-    error::{HeaderErrorType, Error},
+    error::{Error, HeaderErrorType},
     Result,
 };
 use derivative::Derivative;
