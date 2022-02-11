@@ -32,22 +32,6 @@ pub struct OleFile {
 }
 
 impl OleFile {
-    #[cfg(feature = "blocking")]
-    pub fn from_file_blocking<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
-        //! Read from a OLE file and parse it
-        //!
-        //! ## Example usage
-        //! ```rust
-        //! use ole::OleFile;
-        //! let file = "data/oledoc1.doc_";
-        //!
-        //! let res = OleFile::from_file_blocking(file);
-        //! assert!(res.is_ok())
-        //! ```
-        let rt = tokio::runtime::Runtime::new()?;
-        let f = rt.block_on(tokio::fs::File::open(file))?;
-        rt.block_on(Self::parse(f))
-    }
     #[cfg(feature = "async")]
     pub async fn from_file<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
         //! Read from a OLE file and parse it
@@ -68,75 +52,21 @@ impl OleFile {
         Self::parse(f).await
     }
 
-    async fn parse<R>(mut read: R) -> Result<Self>
-    where
-        R: Readable,
-    {
-        // read the header
-        let raw_file_header = parse_raw_header(&mut read).await?;
-        let file_header = OleHeader::from_raw(raw_file_header);
-        let sector_size = file_header.sector_size as usize;
-
-        //we have to read the remainder of the header if the sector size isn't what we tried to read
-        if sector_size > constants::HEADER_LENGTH {
-            let should_read_size = sector_size - constants::HEADER_LENGTH;
-            let mut should_read = vec![0u8; should_read_size];
-            let did_read_size = read.read(&mut should_read).await?;
-            if did_read_size != should_read_size {
-                return Err(Error::OleInvalidHeader(HeaderErrorType::NotEnoughBytes(
-                    should_read_size,
-                    did_read_size,
-                )));
-            } else if should_read != vec![0u8; should_read_size] {
-                return Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
-                    "all bytes must be zero for larger header sizes",
-                    "n/a".to_string(),
-                )));
-            }
-        }
-
-        let mut sectors = vec![];
-        loop {
-            let mut buf = vec![0u8; sector_size];
-            match read.read(&mut buf).await {
-                Ok(actually_read_size) if actually_read_size == sector_size => {
-                    sectors.push((&buf[0..actually_read_size]).to_vec());
-                }
-                Ok(wrong_size) if wrong_size != 0 => {
-                    // TODO: we might have to handle the case where the
-                    //       last sector isn't actually complete. Not sure yet.
-                    //       the spec says the entire file has to be present here,
-                    //       with equal sectors, so I'm doing it this way.
-                    return Err(Error::OleUnexpectedEof(format!(
-                        "short read when parsing sector number: {}",
-                        sectors.len()
-                    )));
-                }
-                Ok(_empty) => {
-                    break;
-                }
-                Err(error) => {
-                    return Err(Error::StdIo(error));
-                }
-            }
-        }
-
-        let mut self_to_init = OleFile {
-            header: file_header,
-            sectors,
-            sector_allocation_table: vec![],
-            short_sector_allocation_table: vec![],
-            directory_stream_data: vec![],
-            directory_entries: vec![],
-            mini_stream: vec![],
-        };
-
-        self_to_init.initialize_sector_allocation_table()?;
-        self_to_init.initialize_short_sector_allocation_table()?;
-        self_to_init.initialize_directory_stream()?;
-        self_to_init.initialize_mini_stream()?;
-
-        Ok(self_to_init)
+    #[cfg(feature = "blocking")]
+    pub fn from_file_blocking<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
+        //! Read from a OLE file and parse it
+        //!
+        //! ## Example usage
+        //! ```rust
+        //! use ole::OleFile;
+        //! let file = "data/oledoc1.doc_";
+        //!
+        //! let res = OleFile::from_file_blocking(file);
+        //! assert!(res.is_ok())
+        //! ```
+        let rt = tokio::runtime::Runtime::new()?;
+        let f = rt.block_on(tokio::fs::File::open(file))?;
+        rt.block_on(Self::parse(f))
     }
 
     pub fn list_streams(&self) -> Vec<String> {
@@ -217,6 +147,77 @@ impl OleFile {
             }
         }
         Err(Error::OleDirectoryEntryNotFound)
+    }
+
+    async fn parse<R>(mut read: R) -> Result<Self>
+    where
+        R: Readable,
+    {
+        // read the header
+        let raw_file_header = parse_raw_header(&mut read).await?;
+        let file_header = OleHeader::from_raw(raw_file_header);
+        let sector_size = file_header.sector_size as usize;
+
+        //we have to read the remainder of the header if the sector size isn't what we tried to read
+        if sector_size > constants::HEADER_LENGTH {
+            let should_read_size = sector_size - constants::HEADER_LENGTH;
+            let mut should_read = vec![0u8; should_read_size];
+            let did_read_size = read.read(&mut should_read).await?;
+            if did_read_size != should_read_size {
+                return Err(Error::OleInvalidHeader(HeaderErrorType::NotEnoughBytes(
+                    should_read_size,
+                    did_read_size,
+                )));
+            } else if should_read != vec![0u8; should_read_size] {
+                return Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
+                    "all bytes must be zero for larger header sizes",
+                    "n/a".to_string(),
+                )));
+            }
+        }
+
+        let mut sectors = vec![];
+        loop {
+            let mut buf = vec![0u8; sector_size];
+            match read.read(&mut buf).await {
+                Ok(actually_read_size) if actually_read_size == sector_size => {
+                    sectors.push((&buf[0..actually_read_size]).to_vec());
+                }
+                Ok(wrong_size) if wrong_size != 0 => {
+                    // TODO: we might have to handle the case where the
+                    //       last sector isn't actually complete. Not sure yet.
+                    //       the spec says the entire file has to be present here,
+                    //       with equal sectors, so I'm doing it this way.
+                    return Err(Error::OleUnexpectedEof(format!(
+                        "short read when parsing sector number: {}",
+                        sectors.len()
+                    )));
+                }
+                Ok(_empty) => {
+                    break;
+                }
+                Err(error) => {
+                    return Err(Error::StdIo(error));
+                }
+            }
+        }
+
+        let mut self_to_init = OleFile {
+            header: file_header,
+            sectors,
+            sector_allocation_table: vec![],
+            short_sector_allocation_table: vec![],
+            directory_stream_data: vec![],
+            directory_entries: vec![],
+            mini_stream: vec![],
+        };
+
+        self_to_init.initialize_sector_allocation_table()?;
+        self_to_init.initialize_short_sector_allocation_table()?;
+        self_to_init.initialize_directory_stream()?;
+        self_to_init.initialize_mini_stream()?;
+
+        Ok(self_to_init)
     }
 
     fn initialize_sector_allocation_table(&mut self) -> Result<()> {
