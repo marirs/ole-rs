@@ -23,6 +23,11 @@ async = []
 name = "ole"
 path = "src/lib.rs"
 
+[[example]]
+name = "ole_cli"
+path = "examples/main.rs"
+required-features = ["blocking"]
+
 [profile.dev]
 opt-level = 3
 
