@@ -11,8 +11,8 @@ use crate::{
     header::{parse_raw_header, OleHeader},
 };
 use derivative::Derivative;
+use error::{Error, HeaderErrorType};
 use tokio::io::AsyncReadExt;
-use error::{HeaderErrorType, Error};
 
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
@@ -32,19 +32,21 @@ pub struct OleFile {
 }
 
 impl OleFile {
+    #[cfg(feature = "blocking")]
     pub fn from_file_blocking<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
         let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(Self::from_file(file))
+        let f = rt.block_on(tokio::fs::File::open(file))?;
+        rt.block_on(Self::parse(f))
     }
-
+    #[cfg(feature = "async")]
     pub async fn from_file<P: AsRef<std::path::Path>>(file: P) -> Result<Self> {
         let f = tokio::fs::File::open(file).await?;
         Self::parse(f).await
     }
 
     async fn parse<R>(mut read: R) -> Result<Self>
-        where
-            R: Readable,
+    where
+        R: Readable,
     {
         // read the header
         let raw_file_header = parse_raw_header(&mut read).await?;

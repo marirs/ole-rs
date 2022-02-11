@@ -1,6 +1,6 @@
 [package]
 name = "ole"
-version = "0.1.0"
+version = "0.1.1"
 description = "Parser to analyze MS OLE2 files (Structured Storage, Compound File Binary Format) and MS Office documents."
 authors = ["Marirs <marirs@gmail.com>"]
 keywords = ["ole2", "compound", "parser"]
@@ -13,6 +13,11 @@ derivative = "2.2"
 epochs = "0.2"
 thiserror = "1"
 tokio = { version = "1", features = ["full"] }
+
+[features]
+default = ["async"]
+blocking = []
+async = []
 
 [lib]
 name = "ole"
