@@ -17,6 +17,17 @@ A set of OLE parsers and tools to deal with OLE files.
 [dependencies]
 ole = { git = "https://github.com/marirs/ole-rs.git", branch = "master" }
 ```
+- example code
+```rust
+use ole::OleFile;
+
+fn main() {
+    let file = "data/oledoc1.doc_";
+    let res = OleFile::from_file(file).await.expect("file not found");
+    println!("{:#?}", &res);
+    println!("entries: {:#?}", res.list_streams());
+}
+```
 
 - dependency with blocking
 ```toml
