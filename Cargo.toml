@@ -4,6 +4,7 @@ version = "0.1.1"
 description = "Parser to analyze MS OLE2 files (Structured Storage, Compound File Binary Format) and MS Office documents."
 authors = ["Marirs <marirs@gmail.com>"]
 keywords = ["ole2", "compound", "parser"]
+exclude = ["examples", "data"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
 
