@@ -247,17 +247,18 @@ impl DirectoryEntryRaw {
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
 pub struct DirectoryEntry {
-    index: usize, //the index in the directory array
+    index: usize,
+    //the index in the directory array
     pub(crate) object_type: ObjectType,
     pub(crate) name: String,
     color: NodeColor,
-    left_sibling_id: Option<u32>,
-    right_sibling_id: Option<u32>,
-    child_id: Option<u32>,
+    pub(crate) left_sibling_id: Option<u32>,
+    pub(crate) right_sibling_id: Option<u32>,
+    pub(crate) child_id: Option<u32>,
 
-    //TODO: do we need these?
-    #[derivative(Debug = "ignore")]
-    _class_id_guid: [u8; 16],
+    pub(crate) class_id: Option<String>,
+
+    //TODO: do we need this?
     #[derivative(Debug = "ignore")]
     _state_bits: [u8; 4],
 
@@ -298,7 +299,7 @@ impl DirectoryEntry {
         let color = match raw_directory_entry.color_flag {
             constants::NODE_COLOR_RED => Ok(NodeColor::Red),
             constants::NODE_COLOR_BLACK => Ok(NodeColor::Black),
-            anything_else  => Err(Error::OleInvalidDirectoryEntry(
+            anything_else => Err(Error::OleInvalidDirectoryEntry(
                 "node_color",
                 format!("invalid value: {:x?}", anything_else),
             )),
@@ -360,23 +361,12 @@ impl DirectoryEntry {
         // object. For a root storage object, this field MUST contain the first sector of the mini stream, if the
         // mini stream exists. For a storage object, this field MUST be set to all zeroes.
         let starting_sector_location =
+            // this code previously checked that storage entries have a zero starting sector location
+            // but there are known cases where this trips in real files, so removed this check.
             match (object_type, raw_directory_entry.starting_sector_location) {
-                (ObjectType::Storage, location) if location != [0x00; 4] => {
-                    Err(Error::OleInvalidDirectoryEntry(
-                        "starting_sector_location",
-                        "starting sector location non-zero for storage object type".to_string(),
-                    ))
-                }
-                (ObjectType::Storage, _zero) => Ok(None),
-                //the spec says "if the mini stream exists", so i don't think i can do this.
-                // (ObjectType::RootStorage, location) if location == [0x00; 4] => {
-                //     Err(Error::InvalidDirectoryEntry(
-                //         "starting_sector_location",
-                //         format!("missing starting sector location for root storage object type"),
-                //     ))
-                // }
-                (_, location) => Ok(Some(u32::from_le_bytes(location))),
-            }?;
+                (ObjectType::Storage, _assumed_zero) => None,
+                (_, location) => Some(u32::from_le_bytes(location)),
+            };
 
         let stream_size = if ole_file_header.major_version == constants::MAJOR_VERSION_3_VALUE {
             /*
@@ -415,6 +405,33 @@ impl DirectoryEntry {
             ));
         }
 
+        let class_id = match raw_directory_entry.class_id {
+            empty if empty == [0x00; 16] => None,
+            bytes => {
+                let a = i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                let b = i16::from_le_bytes([bytes[4], bytes[5]]);
+                let c = i16::from_le_bytes([bytes[6], bytes[7]]);
+
+                Some(
+                    format!(
+                        "{:08x}-{:04x}-{:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+                        a,
+                        b,
+                        c,
+                        bytes[8],
+                        bytes[9],
+                        bytes[10],
+                        bytes[11],
+                        bytes[12],
+                        bytes[13],
+                        bytes[14],
+                        bytes[15]
+                    )
+                    .to_uppercase(),
+                )
+            }
+        };
+
         Ok(Self {
             index,
             object_type,
@@ -423,7 +440,7 @@ impl DirectoryEntry {
             left_sibling_id,
             right_sibling_id,
             child_id,
-            _class_id_guid: raw_directory_entry.class_id,
+            class_id,
             _state_bits: raw_directory_entry.state_bits,
             creation_time,
             modification_time,

@@ -1,6 +1,13 @@
+#[macro_use]
+extern crate lazy_static;
+
 mod constants;
 mod directory;
+mod encryption;
 mod header;
+
+mod ftype;
+pub use ftype::file_type;
 
 pub mod error;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -8,6 +15,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 use crate::{
     constants::Readable,
     directory::{DirectoryEntry, DirectoryEntryRaw, ObjectType},
+    ftype::OleFileType,
     header::{parse_raw_header, OleHeader},
 };
 use derivative::Derivative;
@@ -29,6 +37,8 @@ pub struct OleFile {
     directory_entries: Vec<DirectoryEntry>,
     #[derivative(Debug = "ignore")]
     mini_stream: Vec<[u8; 64]>,
+    file_type: OleFileType,
+    pub encrypted: bool,
 }
 
 impl OleFile {
@@ -69,6 +79,10 @@ impl OleFile {
         rt.block_on(Self::parse(f))
     }
 
+    pub fn root(&self) -> &DirectoryEntry {
+        &self.directory_entries[0]
+    }
+
     pub fn list_streams(&self) -> Vec<String> {
         //! List the streams from a parsed OLE file
         //!
@@ -85,25 +99,30 @@ impl OleFile {
         //!     assert!(!streams.is_empty());
         //! }
         //! ```
-        self.directory_entries
-            .iter()
-            .filter_map(|entry| {
-                if entry.object_type == ObjectType::Stream {
-                    Some(entry.name.clone())
-                } else {
-                    None
-                }
-            })
-            .collect()
+        self.list_object(ObjectType::Stream)
     }
 
-    pub fn open_stream(&mut self, stream_name: &str) -> Result<Vec<u8>> {
-        let potential_entries = self
-            .directory_entries
-            .iter()
-            .filter(|entry| entry.name == stream_name);
+    pub fn list_storage(&self) -> Vec<String> {
+        //! List the Storages from a parsed OLE file
+        //!
+        //! ## Example usage
+        //! ```rust
+        //! use ole::OleFile;
+        //!
+        //! #[tokio::main]
+        //! async fn main() {
+        //!     let file = "data/oledoc1.doc_";
+        //!
+        //!     let res = OleFile::from_file(file).await.expect("file not found");
+        //!     let storage = res.list_storage();
+        //!     assert!(!storage.is_empty());
+        //! }
+        //! ```
+        self.list_object(ObjectType::Storage)
+    }
 
-        for directory_entry in potential_entries {
+    pub fn open_stream(&self, stream_path: &[&str]) -> Result<Vec<u8>> {
+        if let Some(directory_entry) = self.find_stream(stream_path, None) {
             if directory_entry.object_type == ObjectType::Stream {
                 let mut data = vec![];
                 let mut collected_bytes = 0;
@@ -147,10 +166,99 @@ impl OleFile {
                         next_sector = self.sector_allocation_table[next_sector as usize];
                     }
                 }
+                // println!("data.len(): {}", data.len());
                 return Ok(data);
             }
         }
+
         Err(Error::OleDirectoryEntryNotFound)
+    }
+
+    fn list_object(&self, object_type: ObjectType) -> Vec<String> {
+        self.directory_entries
+            .iter()
+            .filter_map(|entry| {
+                if entry.object_type == object_type {
+                    Some(entry.name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn find_stream(
+        &self,
+        stream_path: &[&str],
+        parent: Option<&DirectoryEntry>,
+    ) -> Option<&DirectoryEntry> {
+        let first_entry = stream_path[0];
+        let remainder = &stream_path[1..];
+        let remaining_len = remainder.len();
+
+        match parent {
+            Some(parent) => {
+                // println!("recursive_parent_entry: {:?}", parent);
+                // this is a recursive case
+                let mut entries_to_search = vec![];
+                if let Some(child_id) = parent.child_id {
+                    let child = self.directory_entries.get(child_id as usize).unwrap();
+                    entries_to_search.push((child, true));
+                }
+                if let Some(left_sibling_id) = parent.left_sibling_id {
+                    entries_to_search.push((
+                        self.directory_entries
+                            .get(left_sibling_id as usize)
+                            .unwrap(),
+                        false,
+                    ));
+                }
+                if let Some(right_sibling_id) = parent.right_sibling_id {
+                    entries_to_search.push((
+                        self.directory_entries
+                            .get(right_sibling_id as usize)
+                            .unwrap(),
+                        false,
+                    ));
+                }
+                for (entry, is_child) in entries_to_search {
+                    if entry.name == first_entry {
+                        return if remaining_len == 0 {
+                            // println!("found_entry: {:?}", entry);
+                            Some(entry)
+                        } else if is_child {
+                            self.find_stream(remainder, Some(entry))
+                        } else {
+                            self.find_stream(stream_path, Some(entry))
+                        };
+                    } else if let Some(found_entry) = self.find_stream(stream_path, Some(entry)) {
+                        return Some(found_entry);
+                    }
+                }
+                None
+            }
+            None => {
+                //this is the root case
+                if stream_path.is_empty() {
+                    return None;
+                }
+                if let Some(found_entry) = self
+                    .directory_entries
+                    .iter()
+                    .find(|entry| entry.name == first_entry)
+                {
+                    //handle this
+                    if remaining_len == 0 {
+                        // println!("found_entry: {:?}", found_entry);
+                        Some(found_entry)
+                    } else {
+                        self.find_stream(remainder, Some(found_entry))
+                    }
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     async fn parse<R>(mut read: R) -> Result<Self>
@@ -214,12 +322,16 @@ impl OleFile {
             directory_stream_data: vec![],
             directory_entries: vec![],
             mini_stream: vec![],
+            file_type: OleFileType::Generic,
+            encrypted: false,
         };
 
         self_to_init.initialize_sector_allocation_table()?;
         self_to_init.initialize_short_sector_allocation_table()?;
         self_to_init.initialize_directory_stream()?;
         self_to_init.initialize_mini_stream()?;
+        self_to_init.file_type = ftype::file_type(self_to_init.root());
+        self_to_init.encrypted = encryption::is_encrypted(&self_to_init);
 
         Ok(self_to_init)
     }
@@ -245,6 +357,7 @@ impl OleFile {
 
         Ok(())
     }
+
     fn initialize_short_sector_allocation_table(&mut self) -> Result<()> {
         if self.header.short_sector_allocation_table_len == 0
             || self.header.short_sector_allocation_table_first_sector == constants::CHAIN_END
@@ -279,8 +392,7 @@ impl OleFile {
             .extend(self.sectors[next_directory_index as usize].iter());
 
         loop {
-            next_directory_index =
-                self.sector_allocation_table[next_directory_index as usize];
+            next_directory_index = self.sector_allocation_table[next_directory_index as usize];
             if next_directory_index == constants::CHAIN_END {
                 break;
             } else {
@@ -323,6 +435,7 @@ impl OleFile {
 
         Ok(())
     }
+
     fn initialize_mini_stream(&mut self) -> Result<()> {
         let (mut next_sector, mini_stream_size) = {
             let root_entry = &self.directory_entries[0];

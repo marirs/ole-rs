@@ -47,5 +47,10 @@ fn main() {
 }
 ```
 
+- Running the Example Code
+```bash
+cargo r --example ole_cli --features="blocking" data/oledoc1.doc_
+```
+
 ---
 License: MIT or Apache

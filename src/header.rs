@@ -16,16 +16,16 @@ pub struct OleHeader {
     mini_sector_size: u16,
     directory_sectors_len: u32,
     pub standard_stream_min_size: u32,
-    // sector allocation table AKA "FAT"
+    /// sector allocation table AKA "FAT"
     pub sector_allocation_table_first_sector: u32,
     pub sector_allocation_table_len: u32,
-    // short sector allocation table AKA "mini-FAT"
+    /// short sector allocation table AKA "mini-FAT"
     pub short_sector_allocation_table_first_sector: u32,
     pub short_sector_allocation_table_len: u32,
-    // master sector allocation table AKA "DI-FAT"
+    /// master sector allocation table AKA "DI-FAT"
     master_sector_allocation_table_first_sector: u32,
     pub master_sector_allocation_table_len: u32,
-    // the first 109 FAT sector locations
+    /// the first 109 FAT sector locations
     #[derivative(Debug = "ignore")]
     pub sector_allocation_table_head: Vec<u32>,
 }
@@ -140,7 +140,8 @@ pub struct RawFileHeader {
     #[derivative(Debug = "ignore")]
     sector_allocation_table_head: Vec<u32>,
 }
-pub async fn parse_raw_header<R>(read: &mut R) -> Result<RawFileHeader>
+
+pub(crate) async fn parse_raw_header<R>(read: &mut R) -> Result<RawFileHeader>
 where
     R: Readable,
 {
