@@ -448,20 +448,18 @@ impl<'a> EncryptionHandler<'a> for ExcelEncryptionHandler<'a> {
                     [0x01, 0x00] => {
                         //RC4
                         true
-                    },
+                    }
                     [0x00, 0x00] => {
                         // XOR Obfuscation unsupported
                         false
-                    },
+                    }
                     _ => {
                         //anything else is not encrypted
                         false
                     }
                 }
-            },
-            None => {
-                false
-            },
+            }
+            None => false,
         }
     }
 
