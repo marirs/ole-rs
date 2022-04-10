@@ -121,6 +121,24 @@ impl OleFile {
         self.list_object(ObjectType::Storage)
     }
 
+    pub fn is_encrypted(&self) -> bool {
+        //! Returns true or false if a file is encrypted/password protected
+        //!
+        //! ## Example usage
+        //! ```rust
+        //! use ole::OleFile;
+        //!
+        //! #[tokio::main]
+        //! async fn main() {
+        //!     let file = "data/encryption/encrypted/rc4cryptoapi_password.doc";
+        //!
+        //!     let res = OleFile::from_file(file).await.expect("file not found");
+        //!     assert!(res.is_encrypted());
+        //! }
+        //! ```
+        self.encrypted
+    }
+
     pub fn open_stream(&self, stream_path: &[&str]) -> Result<Vec<u8>> {
         if let Some(directory_entry) = self.find_stream(stream_path, None) {
             if directory_entry.object_type == ObjectType::Stream {
@@ -297,9 +315,9 @@ impl OleFile {
                 }
                 Ok(wrong_size) if wrong_size != 0 => {
                     // TODO: we might have to handle the case where the
-                    //       last sector isn't actually complete. Not sure yet.
-                    //       the spec says the entire file has to be present here,
-                    //       with equal sectors, so I'm doing it this way.
+                    //      last sector isn't actually complete. Not sure yet.
+                    //      the spec says the entire file has to be present here,
+                    //      with equal sectors, so I'm doing it this way.
                     return Err(Error::OleUnexpectedEof(format!(
                         "short read when parsing sector number: {}",
                         sectors.len()
@@ -332,12 +350,12 @@ impl OleFile {
         self_to_init.initialize_mini_stream()?;
         self_to_init.file_type = ftype::file_type(self_to_init.root());
         self_to_init.encrypted = encryption::is_encrypted(&self_to_init);
-
         Ok(self_to_init)
     }
 
     fn initialize_sector_allocation_table(&mut self) -> Result<()> {
         for sector_index in self.header.sector_allocation_table_head.iter() {
+            // println!("sector_index: {:#x?}", *sector_index);
             if *sector_index == constants::UNALLOCATED_SECTOR
                 || *sector_index == constants::CHAIN_END
             {
@@ -362,7 +380,7 @@ impl OleFile {
         if self.header.short_sector_allocation_table_len == 0
             || self.header.short_sector_allocation_table_first_sector == constants::CHAIN_END
         {
-            return Ok(()); //no mini stream here
+            return Ok(()); // no mini stream here
         }
 
         let mut next_index = self.header.short_sector_allocation_table_first_sector;
@@ -425,6 +443,7 @@ impl OleFile {
             .chunks(constants::SIZE_OF_DIRECTORY_ENTRY)
             .enumerate()
         {
+            // println!("unparsed_entry: {}", unparsed_entry.len());
             let raw_directory_entry = DirectoryEntryRaw::parse(unparsed_entry)?;
             match DirectoryEntry::from_raw(&self.header, raw_directory_entry, index) {
                 Ok(directory_entry) => self.directory_entries.push(directory_entry),
@@ -435,7 +454,6 @@ impl OleFile {
 
         Ok(())
     }
-
     fn initialize_mini_stream(&mut self) -> Result<()> {
         let (mut next_sector, mini_stream_size) = {
             let root_entry = &self.directory_entries[0];
@@ -457,13 +475,47 @@ impl OleFile {
             next_sector = self.sector_allocation_table[next_sector as usize];
         }
         raw_mini_stream_data.truncate(mini_stream_size as usize);
-
-        //mini streams are sectors of 64 bytes, and the size is guaranteed to be an exact multiple.
         raw_mini_stream_data.chunks_exact(64).for_each(|chunk| {
-            //the unwrap is safe because the chunk is guaranteed to be 64 bytes.
             self.mini_stream.push(<[u8; 64]>::try_from(chunk).unwrap());
         });
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    pub async fn test_word_encryption_detection_on() {
+        let ole_file = OleFile::from_file("data/encryption/encrypted/rc4cryptoapi_password.doc")
+            .await
+            .unwrap();
+        assert!(ole_file.is_encrypted());
+    }
+
+    #[tokio::test]
+    pub async fn test_word_encryption_detection_off() {
+        let ole_file = OleFile::from_file("data/encryption/plaintext/plain.doc")
+            .await
+            .unwrap();
+        assert!(!ole_file.is_encrypted());
+    }
+
+    #[tokio::test]
+    pub async fn test_excel_encryption_detection_on() {
+        let ole_file = OleFile::from_file("data/encryption/encrypted/rc4cryptoapi_password.xls")
+            .await
+            .unwrap();
+        assert!(ole_file.is_encrypted());
+    }
+
+    #[tokio::test]
+    pub async fn test_excel_encryption_detection_off() {
+        let ole_file = OleFile::from_file("data/encryption/plaintext/plain.xls")
+            .await
+            .unwrap();
+        assert!(!ole_file.is_encrypted());
     }
 }

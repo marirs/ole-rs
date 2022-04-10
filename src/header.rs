@@ -31,7 +31,7 @@ pub struct OleHeader {
 }
 
 impl OleHeader {
-    pub fn from_raw(raw_file_header: RawFileHeader) -> Self {
+    pub(crate) fn from_raw(raw_file_header: RawFileHeader) -> Self {
         let major_version = u16::from_le_bytes(raw_file_header.major_version);
         let minor_version = u16::from_le_bytes(raw_file_header.minor_version);
         let sector_size = 2u16.pow(u16::from_le_bytes(raw_file_header.sector_size) as u32);
@@ -193,22 +193,13 @@ where
             }
         })?;
     //https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-CFB/%5bMS-CFB%5d.pdf
-    //says this SHOULD be set to 0x003E.
-    let minor_version: [u8; 2] = (&header[24..26])
-        .try_into()
-        .map_err(|err: TryFromSliceError| {
-            Error::OleInvalidHeader(HeaderErrorType::Parsing("minor_version", err.to_string()))
-        })
-        .and_then(|minor_version| {
-            if minor_version != constants::CORRECT_MINOR_VERSION {
-                Err(Error::OleInvalidHeader(HeaderErrorType::Parsing(
-                    "minor_version",
-                    format!("incorrect minor version {:x?}", minor_version),
-                )))
-            } else {
-                Ok(minor_version)
-            }
-        })?;
+    //says this SHOULD be set to 0x003E.  But word95 sets it to something else because reasons.
+    let minor_version: [u8; 2] =
+        (&header[24..26])
+            .try_into()
+            .map_err(|err: TryFromSliceError| {
+                Error::OleInvalidHeader(HeaderErrorType::Parsing("minor_version", err.to_string()))
+            })?;
     //https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-CFB/%5bMS-CFB%5d.pdf
     //This field MUST be set to either
     // 0x0003 (version 3) or 0x0004 (version 4).

@@ -6,7 +6,7 @@ impl Readable for tokio::fs::File {}
 
 pub const HEADER_LENGTH: usize = 512;
 pub const MAGIC_BYTES: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
-pub const CORRECT_MINOR_VERSION: [u8; 2] = [0x3E, 0x00];
+pub const _CORRECT_MINOR_VERSION: [u8; 2] = [0x3E, 0x00];
 pub const MAJOR_VERSION_3_VALUE: u16 = 3;
 pub const MAJOR_VERSION_3: [u8; 2] = [0x03, 0x00];
 pub const MAJOR_VERSION_4: [u8; 2] = [0x04, 0x00];

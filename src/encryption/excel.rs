@@ -393,6 +393,7 @@ impl<'a> BIFFSTream<'a> {
     }
 }
 
+#[derive(Debug)]
 struct BiffItem<'a> {
     pub num: u16,
     pub size: u16,
@@ -442,6 +443,10 @@ impl<'a> EncryptionHandler<'a> for ExcelEncryptionHandler<'a> {
         let first = workbook.into_iter().next().expect("must have first item");
         assert_eq!(&first.num, NAME_TO_RECORD_NUM_MAP.get("BOF").unwrap());
         let mut workbook = BIFFSTream::new(&workbook_stream);
+        println!(
+            "aaa: {:?}",
+            workbook.skip_to(*NAME_TO_RECORD_NUM_MAP.get("FilePass").unwrap())
+        );
         match workbook.skip_to(*NAME_TO_RECORD_NUM_MAP.get("FilePass").unwrap()) {
             Some(item) => {
                 match &item.data[0..2] {

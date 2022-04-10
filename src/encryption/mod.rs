@@ -13,8 +13,8 @@ mod word;
 
 lazy_static! {
     pub static ref WORD_DOC_STR: String = "WordDocument".to_lowercase();
-    pub static ref EXCEL_STR: String = "PowerPoint Document".to_lowercase();
-    pub static ref POWER_POINT_STR: String = "Workbook".to_lowercase();
+    pub static ref POWER_POINT_STR: String = "PowerPoint Document".to_lowercase();
+    pub static ref EXCEL_STR: String = "Workbook".to_lowercase();
     pub static ref OOXML_DOC_STR: String = "EncryptionInfo".to_lowercase();
 }
 
