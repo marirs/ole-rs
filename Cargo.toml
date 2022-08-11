@@ -1,38 +1,8 @@
-[package]
-name = "ole"
-version = "0.1.2"
-description = "Parser to analyze MS OLE2 files (Structured Storage, Compound File Binary Format) and MS Office documents."
-authors = ["Marirs <marirs@gmail.com>"]
-keywords = ["ole2", "compound", "parser"]
-exclude = ["examples", "data"]
-license = "MIT OR Apache-2.0"
-edition = "2021"
-
-[dependencies]
-chrono = "0.4"
-derivative = "2.2"
-epochs = "0.2"
-lazy_static = "1.4"
-packed_struct = "0.10"
-thiserror = "1"
-tokio = { version = "1", features = ["full"] }
-
-[dev-dependencies]
-tokio-test = "0.4"
-
-[features]
-default = ["async"]
-blocking = []
-async = []
-
-[lib]
-name = "ole"
-path = "src/lib.rs"
-
-[[example]]
-name = "ole_cli"
-path = "examples/main.rs"
-required-features = ["blocking"]
+[workspace]
+members = [
+    "common",
+    "oleid"
+]
 
 [profile.dev]
 opt-level = 3

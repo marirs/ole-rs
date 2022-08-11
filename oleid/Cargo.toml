@@ -1,0 +1,13 @@
+[package]
+name = "oleid"
+version = "0.1.2"
+description = "A tool to analyze MS Office documents(eg. Word, Excel) to detect specific characteristics common in malicious files."
+authors = ["Marirs <marirs@gmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+
+[dependencies]
+log = "0.4.17"
+simple_logger = "2.2.0"
+clap = "3.2.16"

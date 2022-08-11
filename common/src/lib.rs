@@ -454,6 +454,7 @@ impl OleFile {
 
         Ok(())
     }
+    
     fn initialize_mini_stream(&mut self) -> Result<()> {
         let (mut next_sector, mini_stream_size) = {
             let root_entry = &self.directory_entries[0];
@@ -489,7 +490,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_word_encryption_detection_on() {
-        let ole_file = OleFile::from_file("data/encryption/encrypted/rc4cryptoapi_password.doc")
+        let ole_file = OleFile::from_file("../../data/encryption/encrypted/rc4cryptoapi_password.doc")
             .await
             .unwrap();
         assert!(ole_file.is_encrypted());
@@ -497,7 +498,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_word_encryption_detection_off() {
-        let ole_file = OleFile::from_file("data/encryption/plaintext/plain.doc")
+        let ole_file = OleFile::from_file("../../data/encryption/plaintext/plain.doc")
             .await
             .unwrap();
         assert!(!ole_file.is_encrypted());
@@ -505,7 +506,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_excel_encryption_detection_on() {
-        let ole_file = OleFile::from_file("data/encryption/encrypted/rc4cryptoapi_password.xls")
+        let ole_file = OleFile::from_file("../../data/encryption/encrypted/rc4cryptoapi_password.xls")
             .await
             .unwrap();
         assert!(ole_file.is_encrypted());
@@ -513,7 +514,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn test_excel_encryption_detection_off() {
-        let ole_file = OleFile::from_file("data/encryption/plaintext/plain.xls")
+        let ole_file = OleFile::from_file("../../data/encryption/plaintext/plain.xls")
             .await
             .unwrap();
         assert!(!ole_file.is_encrypted());

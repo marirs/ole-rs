@@ -1,0 +1,37 @@
+[package]
+name = "ole-common"
+version = "0.1.2"
+description = "Common files that are used by other crates."
+authors = ["Marirs <marirs@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+chrono = "0.4"
+derivative = "2.2"
+epochs = "0.2"
+lazy_static = "1.4"
+packed_struct = "0.10"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[features]
+default = ["async"]
+blocking = []
+async = []
+
+[lib]
+name = "ole"
+path = "src/lib.rs"
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+debug-assertions = false
+debug = false
+opt-level = 3
+lto = true
