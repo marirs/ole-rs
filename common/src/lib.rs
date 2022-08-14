@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate lazy_static;
 
-mod constants;
-mod directory;
+pub mod constants;
+pub mod directory;
 mod encryption;
-mod header;
+pub mod header;
 
-mod ftype;
+pub mod ftype;
 pub use ftype::file_type;
 
 pub mod error;
@@ -33,11 +33,11 @@ pub struct OleFile {
     #[derivative(Debug = "ignore")]
     short_sector_allocation_table: Vec<u32>,
     #[derivative(Debug = "ignore")]
-    directory_stream_data: Vec<u8>,
+    pub directory_stream_data: Vec<u8>,
     directory_entries: Vec<DirectoryEntry>,
     #[derivative(Debug = "ignore")]
     mini_stream: Vec<[u8; 64]>,
-    file_type: OleFileType,
+    pub file_type: OleFileType,
     pub encrypted: bool,
 }
 
@@ -137,6 +137,27 @@ impl OleFile {
         //! }
         //! ```
         self.encrypted
+    }
+    
+    pub fn is_excel(&self) -> bool {
+        //! Check if the file is an excel file.
+        //!
+        //! ## Example usage
+        //! ```rust
+        //! use ole::OleFile;
+        //!
+        //! #[tokio::main]
+        //! async fn main() {
+        //!     let file = "data/maldoc.xls";
+        //!
+        //!     let res = OleFile::from_file(file).await.expect("file not found");
+        //!     assert!(res.is_excel());
+        //! }
+        //! ```
+        return match self.file_type {
+            OleFileType::Excel5 | OleFileType::Excel97 => true,
+            _=> false
+        }
     }
 
     pub fn open_stream(&self, stream_path: &[&str]) -> Result<Vec<u8>> {

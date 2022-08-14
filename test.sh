@@ -1,6 +1,7 @@
 #!/bin/bash
 
+echo "RUNNING THE OLEID TOOL"
 for file in data/*; do 
     echo "$file"; 
-    cargo run --example ole_cli --features="blocking" -- "$file" >"$file".res
+    cargo run -- --file "$file"
 done

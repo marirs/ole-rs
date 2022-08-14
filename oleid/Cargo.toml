@@ -11,3 +11,5 @@ edition = "2021"
 log = "0.4.17"
 simple_logger = "2.2.0"
 clap = "3.2.16"
+ole-common = {path="../common", features=["blocking"]}
+tokio = {version="1.20.1", features=["full"]}

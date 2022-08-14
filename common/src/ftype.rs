@@ -1,5 +1,6 @@
 use crate::DirectoryEntry;
 use std::collections::HashMap;
+use std::fmt::{Debug, Display, Formatter};
 
 type RootClassId = &'static str;
 

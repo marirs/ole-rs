@@ -1,3 +1,5 @@
+extern crate core;
+
 pub mod oleid;
 
 use std::process::exit;
@@ -5,6 +7,7 @@ use clap::{Arg, Command};
 use log::{error, Level};
 use simple_logger::init_with_level;
 use crate::oleid::OleId;
+
 
 pub fn main() {
     // Set up logging
