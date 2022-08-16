@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Formatter};
-use olecommon::{OleFile, ftype::OleFileType};
+use ole::{OleFile, ftype::OleFileType};
 
 /// Constants for risk values.
 #[derive(Debug, Clone)]

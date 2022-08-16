@@ -3,9 +3,9 @@ use std::fs;
 use std::io::{BufRead, Cursor, Read};
 use std::path::Path;
 use log::{debug, error, info};
-use olecommon::ftype::OleFileType;
-use olecommon::OleFile;
-use olecommon::util::StringUtils;
+use ole::ftype::OleFileType;
+use ole::OleFile;
+use ole::util::StringUtils;
 
 /// OLE object contained into an OLENativeStream structure.
 /// (see MS-OLEDS 2.3.6 OLENativeStream)  Filename and paths are 
@@ -90,12 +90,12 @@ impl OleNativeStream {
 /// find embedded objects in given file
 pub fn process_file(filepath: &str) {
     let sane_filename = sanitize_filepath(filepath);
-    let base_dir = Path::new(filepath).parent().unwrap();
-    let filename_prefix = base_dir.join(sane_filename.clone());
+    // let base_dir = Path::new(filepath).parent().unwrap();
+    // let filename_prefix = base_dir.join(sane_filename.clone());
     
     println!("{}", vec!["-"; 79].join(""));
     println!("File: {}", filepath);
-    let index = 1;
+    // let index = 1;
     
     // Look for ole files inside file.
     for ole in find_ole(filepath) {

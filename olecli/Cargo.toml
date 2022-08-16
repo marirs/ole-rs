@@ -8,5 +8,5 @@ edition = "2021"
 
 
 [dependencies]
-ole-common = {path="../common", features=["blocking"]}
+ole = {path="../common", features=["blocking", "async"]}
 tokio = {version="1.20.1", features=["full"]}
