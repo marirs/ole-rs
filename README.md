@@ -16,7 +16,21 @@ A set of OLE parsers and tools to deal with OLE files.
   the file is suspicious or malicious, in terms of security (e.g. malware).
 - **OleObj** : A tool to parse OLE objects and files stored into various MS Office file formats (doc, xls, ppt, docx, xlsx, pptx, etc).
 - **Ole-Common** : A crate that reads and parses OLE files.
+## 1. OleId
+### Usage
 
+## 2.OleObj
+This is a tool to parse OLE objects and files stored into various MS Office file formats (doc, xls, ppt, docx, xlsx, pptx, etc).
+### Usage
+```
+oleobj [options] <filename> 
+
+Options
+
+--file: The filepath to the file to process.
+```
+
+## 3. Ole-Common
 ### Example Usage
 
 - add dependency (default feature is to use async)
@@ -26,7 +40,7 @@ ole-common = { git = "https://github.com/marirs/ole-rs.git", branch = "master" }
 ```
 - example code
 ```rust
-use ole::OleFile;
+use olecommon::OleFile;
 
 fn main() {
     let file = "data/oledoc1.doc_";
@@ -44,7 +58,7 @@ ole = { git = "https://github.com/marirs/ole-rs.git", branch = "master", default
 
 - example code
 ```rust
-use ole::OleFile;
+use olecommon::OleFile;
 
 fn main() {
     let file = "data/oledoc1.doc_";

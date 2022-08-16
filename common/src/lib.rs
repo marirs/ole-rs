@@ -10,6 +10,8 @@ pub mod ftype;
 pub use ftype::file_type;
 
 pub mod error;
+pub mod util;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 use crate::{

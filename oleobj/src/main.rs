@@ -6,6 +6,7 @@ use log::{error, Level};
 use simple_logger::init_with_level;
 use crate::ole_object::process_file;
 
+
 pub fn main(){
     // Set up logger
     init_with_level(Level::Debug).unwrap();
@@ -31,5 +32,4 @@ pub fn main(){
     };
     
     process_file(file_path);
-    
 }

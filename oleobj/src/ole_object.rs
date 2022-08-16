@@ -1,9 +1,11 @@
-use std::io::{BufRead, Cursor};
+use std::cmp::max;
+use std::fs;
+use std::io::{BufRead, Cursor, Read};
 use std::path::Path;
 use log::{debug, error, info};
-use tokio::io::AsyncReadExt;
 use olecommon::ftype::OleFileType;
 use olecommon::OleFile;
+use olecommon::util::StringUtils;
 
 /// OLE object contained into an OLENativeStream structure.
 /// (see MS-OLEDS 2.3.6 OLENativeStream)  Filename and paths are 
@@ -27,7 +29,7 @@ impl OleNativeStream {
     /// :param bindata: forwarded to parse, see docu there
     /// :param package: bool, set to True when extracting from an OLE Package
     /// object
-    pub async fn new(bin_data: Option<Vec<u8>>, package: bool) -> Self {
+    pub fn new(bin_data: Option<Vec<u8>>, package: bool) -> Self {
         let mut instance = OleNativeStream {
             filename: None,
             src_path: None,
@@ -41,7 +43,7 @@ impl OleNativeStream {
             package
         };
         if let Some(data) = bin_data {
-            instance.parse(data).await;
+            instance.parse(data);
         }
         instance
     }
@@ -54,15 +56,15 @@ impl OleNativeStream {
     /// structure containing an OLE object  
     /// 
     /// **returns** None
-    pub async fn parse(&mut self, data: Vec<u8>) {
+    pub fn parse(&mut self, data: Vec<u8>) {
         let mut cursor = Cursor::new(data);
         // An Ole package does not have the native data size field.
         if !self.package {
-            self.native_data_size = cursor.read_u32().await.unwrap();
+            self.native_data_size = read_u32(&mut cursor);
             debug!("OLE native data size = {0:08X} ({} bytes)", self.native_data_size);
         }
         // Probably an ole type specifier.
-        self.unknown_short = Some(cursor.read_u16().await.unwrap());
+        self.unknown_short = Some(read_u16(&mut cursor));
         let mut filename_buf: Vec<u8> = Vec::new();
         cursor.read_until(0x00, &mut filename_buf).unwrap();
         // The filename.
@@ -72,15 +74,15 @@ impl OleNativeStream {
         cursor.read_until(0x00, &mut source_path_buf).unwrap();
         self.src_path = Some(String::from_utf8(source_path_buf).unwrap());
         // Most probably time stamps.
-        self.unknown_long_1 = Some(cursor.read_u32().await.unwrap());
-        self.unknown_long_2 = Some(cursor.read_u32().await.unwrap());
+        self.unknown_long_1 = Some(read_u32(&mut cursor));
+        self.unknown_long_2 = Some(read_u32(&mut cursor));
         // The temp path 
         let mut temp_path_buf: Vec<u8> = Vec::new();
         cursor.read_until(0x00, &mut temp_path_buf).unwrap();
         self.temp_path = Some(String::from_utf8(temp_path_buf).unwrap());
         // Size the rest of the data.
-        self.actual_size = Some(cursor.read_u32().await.unwrap());
-        cursor.read(&mut self.data).await.unwrap();
+        self.actual_size = Some(read_u32(&mut cursor));
+        cursor.read(&mut self.data).unwrap();
     }
     
 }
@@ -89,7 +91,7 @@ impl OleNativeStream {
 pub fn process_file(filepath: &str) {
     let sane_filename = sanitize_filepath(filepath);
     let base_dir = Path::new(filepath).parent().unwrap();
-    let filename_prefix = base_dir.join(sane_filename);
+    let filename_prefix = base_dir.join(sane_filename.clone());
     
     println!("{}", vec!["-"; 79].join(""));
     println!("File: {}", filepath);
@@ -103,10 +105,70 @@ pub fn process_file(filepath: &str) {
             if parts_path.to_lowercase() == "\x01ole10native".to_string(){
                 println!("Extract file embedded in OLE object from stream {}", stream_path.display());
                 println!("Parsing OLE Package");
-                let opkg = OleNativeStream::new(Some(ole.directory_stream_data.clone()), false);
+                let stream = ole.open_stream(&vec![parts_path.as_str()]).unwrap();
+                let opkg = OleNativeStream::new(Some(stream.clone()), false);
+                
+                println!("Filename = {}", opkg.filename.as_ref().cloned().unwrap());
+                println!("Source path = {}", opkg.src_path.as_ref().cloned().unwrap());
+                println!("Temp path = {}", opkg.temp_path.as_ref().cloned().unwrap());
+                let mut fname = String::new();
+                for embedded_fname in get_sane_embedded_filenames( opkg.filename.as_ref().cloned().unwrap(), opkg.src_path.as_ref().cloned().unwrap(), opkg.temp_path.as_ref().cloned().unwrap()) {
+                    fname = format!("{}_{}", sane_filename, embedded_fname);
+                    println!("{}", fname);
+                    if !Path::new(fname.as_str()).is_file() {
+                        break;
+                    }
+                }
+                // Dump
+                println!("Saving to file {}", fname.clone());
+                fs::write(fname, stream).unwrap();
             }
         }
     }
+}
+
+/// Get some sane filenames out of path information, preserving file suffix.
+/// Returns several canddiates, first with suffix, then without, then random
+/// with suffix and finally one last attempt ignoring max_len using arg
+/// `noname_index`.
+/// In some malware examples, filename (on which we relied sofar exclusively
+/// for this) is empty or " ", but src_path and tmp_path contain paths with
+/// proper file names. Try to extract filename from any of those.
+/// Preservation of suffix is especially important since that controls how
+/// windows treats the file.
+pub fn get_sane_embedded_filenames(filename: String, source_path: String, temp_path: String) -> Vec<String> {
+    let mut filenames = Vec::new();
+    let mut suffixes = Vec::new();
+    let mut candidates_without_suffixes = Vec::new();
+    for mut candidate in [filename, source_path, temp_path] {
+        let mut index = max(match candidate.rfind("/") {
+            Some(t)=> t,
+            _=> 0
+        }, match candidate.rfind("\\"){
+            Some(t)=> t,
+            _=> 0
+        });
+
+        candidate = candidate.substring(index+1..).trim().to_string();
+
+        candidate = sanitize_filepath(candidate.as_str());
+        // Skip whitespace only.
+        if candidate.len() == 0 {
+            continue
+        }
+        if candidate.rfind(".").is_none() {
+            candidates_without_suffixes.push(candidate);
+            continue
+        } 
+        index = candidate.rfind(".").unwrap();
+        if index < candidate.len() -5 {
+            candidates_without_suffixes.push(candidate);
+            continue
+        }
+        suffixes.push(candidate.substring(index..));
+        filenames.push(candidate);
+    }
+    filenames
 }
 
 /// try to open somehow as zip/ole/rtf/... ; yield None if fail
@@ -160,4 +222,18 @@ fn find_ole_in_ppt(olefile: OleFile) -> Vec<OleFile>{
 fn sanitize_filepath(filepath: &str) -> String {
     let sane_filepath = filepath.replace("..", ".");
     sane_filepath.clone()
+}
+
+fn read_u32(cursor: &mut Cursor<Vec<u8>>) -> u32{
+    let mut data_size_buf = vec![0; 4];
+    cursor.read(&mut data_size_buf).unwrap();
+    let response = u32::from_ne_bytes(if cfg!(target_endian = "big") { [data_size_buf[0], data_size_buf[1], data_size_buf[2], data_size_buf[3]] } else { [data_size_buf[3], data_size_buf[2], data_size_buf[1], data_size_buf[0]] });
+    response
+}
+
+fn read_u16(cursor: &mut Cursor<Vec<u8>>) -> u16 {
+    let mut unknown_short_buf = vec![0; 2];
+    cursor.read(&mut unknown_short_buf).unwrap();
+    let short = u16::from_ne_bytes(if cfg!(target_endian = "big") { [unknown_short_buf[0], unknown_short_buf[1]] } else { [unknown_short_buf[1], unknown_short_buf[0]] });
+    short
 }
