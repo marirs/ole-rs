@@ -17,7 +17,15 @@ A set of OLE parsers and tools to deal with OLE files.
 - **OleObj** : A tool to parse OLE objects and files stored into various MS Office file formats (doc, xls, ppt, docx, xlsx, pptx, etc).
 - **Ole-Common** : A crate that reads and parses OLE files.
 ## 1. OleId
+This is a tool to analyze MS Office documents(eg. Word, Excel) to detect specific characteristics common in malicious files.
 ### Usage
+```
+oleid [options] <filename> 
+
+Options
+
+--file: The filepath to the file to process.
+```
 
 ## 2.OleObj
 This is a tool to parse OLE objects and files stored into various MS Office file formats (doc, xls, ppt, docx, xlsx, pptx, etc).
@@ -53,7 +61,7 @@ fn main() {
 - dependency with blocking
 ```toml
 [dependencies]
-ole = { git = "https://github.com/marirs/ole-rs.git", branch = "master", default-features = false, features = ["blocking"] }
+ole-common = { git = "https://github.com/marirs/ole-rs.git", branch = "master", default-features = false, features = ["blocking"] }
 ```
 
 - example code
