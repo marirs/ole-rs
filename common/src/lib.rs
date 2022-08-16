@@ -152,7 +152,7 @@ impl OleFile {
         //!
         //! #[tokio::main]
         //! async fn main() {
-        //! let file = "data/maldoc.xls";
+        //! let file = "../data/maldoc.xls";
         //!
         //!     let res = OleFile::from_file(file).await.expect("file not found");
         //!     assert!(res.is_excel());
