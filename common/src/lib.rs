@@ -34,7 +34,7 @@ pub struct OleFile {
     short_sector_allocation_table: Vec<u32>,
     #[derivative(Debug = "ignore")]
     pub directory_stream_data: Vec<u8>,
-    directory_entries: Vec<DirectoryEntry>,
+    pub directory_entries: Vec<DirectoryEntry>,
     #[derivative(Debug = "ignore")]
     mini_stream: Vec<[u8; 64]>,
     pub file_type: OleFileType,
@@ -52,7 +52,8 @@ impl OleFile {
         //!
         //! #[tokio::main]
         //! async fn main() {
-        //!     let file = "data/oledoc1.doc_";
+        //!     use olecommon::OleFile;
+        //! let file = "data/oledoc1.doc_";
         //!
         //!     let res = OleFile::from_file(file).await;
         //!     assert!(res.is_ok());
@@ -69,6 +70,7 @@ impl OleFile {
         //! ## Example usage
         //! ```rust
         //! use ole::OleFile;
+        //! use olecommon::OleFile;
         //! let file = "data/oledoc1.doc_";
         //!
         //! let res = OleFile::from_file_blocking(file);
@@ -88,11 +90,11 @@ impl OleFile {
         //!
         //! ## Example usage
         //! ```rust
-        //! use ole::OleFile;
         //!
         //! #[tokio::main]
         //! async fn main() {
-        //!     let file = "data/oledoc1.doc_";
+        //!     use olecommon::OleFile;
+        //! let file = "data/oledoc1.doc_";
         //!
         //!     let res = OleFile::from_file(file).await.expect("file not found");
         //!     let streams = res.list_streams();
@@ -111,7 +113,8 @@ impl OleFile {
         //!
         //! #[tokio::main]
         //! async fn main() {
-        //!     let file = "data/oledoc1.doc_";
+        //!     use olecommon::OleFile;
+        //! let file = "data/oledoc1.doc_";
         //!
         //!     let res = OleFile::from_file(file).await.expect("file not found");
         //!     let storage = res.list_storage();
@@ -130,7 +133,8 @@ impl OleFile {
         //!
         //! #[tokio::main]
         //! async fn main() {
-        //!     let file = "data/encryption/encrypted/rc4cryptoapi_password.doc";
+        //!     use olecommon::OleFile;
+        //! let file = "data/encryption/encrypted/rc4cryptoapi_password.doc";
         //!
         //!     let res = OleFile::from_file(file).await.expect("file not found");
         //!     assert!(res.is_encrypted());
@@ -148,7 +152,8 @@ impl OleFile {
         //!
         //! #[tokio::main]
         //! async fn main() {
-        //!     let file = "data/maldoc.xls";
+        //!     use olecommon::OleFile;
+        //! let file = "data/maldoc.xls";
         //!
         //!     let res = OleFile::from_file(file).await.expect("file not found");
         //!     assert!(res.is_excel());

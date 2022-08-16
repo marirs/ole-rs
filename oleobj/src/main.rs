@@ -1,23 +1,18 @@
-extern crate core;
-
-pub mod oleid;
+pub mod ole_object;
 
 use std::process::exit;
 use clap::{Arg, Command};
 use log::{error, Level};
 use simple_logger::init_with_level;
-use crate::oleid::OleId;
+use crate::ole_object::process_file;
 
-
-pub fn main() {
-    // Set up logging
+pub fn main(){
+    // Set up logger
     init_with_level(Level::Debug).unwrap();
     
     // Get arguments.
-    let args_matches = Command::new("OleId")
-        .about("A tool to analyze OLE files such as MS Office documents (e.g. Word,
-Excel), to detect specific characteristics that could potentially indicate that
-the file is suspicious or malicious, in terms of security (e.g. malware).")
+    let args_matches = Command::new("OleObj")
+        .about("A tool to parse OLE objects and files stored into various MS Office file formats (doc, xls, ppt, docx, xlsx, pptx, etc).")
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
             Arg::new("file")
@@ -26,7 +21,7 @@ the file is suspicious or malicious, in terms of security (e.g. malware).")
                 .help("The path to the file to be processed.")
                 .takes_value(true)
         ).get_matches();
-    
+
     let file_path = match args_matches.value_of("file") {
         Some(t) => t,
         _=> {
@@ -35,7 +30,6 @@ the file is suspicious or malicious, in terms of security (e.g. malware).")
         }
     };
     
-    let mut oleid = OleId::new(file_path);
-    let indicators = oleid.check();
-    println!("{:#?}", indicators);
+    process_file(file_path);
+    
 }

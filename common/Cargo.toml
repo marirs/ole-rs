@@ -23,7 +23,7 @@ blocking = []
 async = []
 
 [lib]
-name = "ole"
+name = "olecommon"
 path = "src/lib.rs"
 
 [profile.dev]

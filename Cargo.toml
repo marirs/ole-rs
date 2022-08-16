@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "common",
-    "oleid"
+    "oleid",
+    "oleobj"
 ]
 
 [profile.dev]

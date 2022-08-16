@@ -10,12 +10,19 @@ A set of OLE parsers and tools to deal with OLE files.
 
 - Rust 1.56+ (edition: 2021)
 
+### Tools
+- **OleId** : A tool to analyze OLE files such as MS Office documents (e.g. Word,
+  Excel), to detect specific characteristics that could potentially indicate that
+  the file is suspicious or malicious, in terms of security (e.g. malware).
+- **OleObj** : A tool to parse OLE objects and files stored into various MS Office file formats (doc, xls, ppt, docx, xlsx, pptx, etc).
+- **Ole-Common** : A crate that reads and parses OLE files.
+
 ### Example Usage
 
 - add dependency (default feature is to use async)
 ```toml
 [dependencies]
-ole = { git = "https://github.com/marirs/ole-rs.git", branch = "master" }
+ole-common = { git = "https://github.com/marirs/ole-rs.git", branch = "master" }
 ```
 - example code
 ```rust
