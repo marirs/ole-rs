@@ -73,7 +73,7 @@ impl OleFile {
         //! ## Example usage
         //! ```rust
         //! use ole::OleFile;
-        //! let file = "data/oledoc1.doc_";
+        //! let file = "../data/oledoc1.doc_";
         //!
         //! let res = OleFile::from_file_blocking(file);
         //! assert!(res.is_ok())
