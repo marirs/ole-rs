@@ -18,13 +18,24 @@ A set of OLE parsers and tools to deal with OLE files.
 - **Ole-Common** : A crate that reads and parses OLE files.
 ## 1. OleId
 This is a tool to analyze MS Office documents(eg. Word, Excel) to detect specific characteristics common in malicious files.
-### Usage
+### CLI Usage
 ```
 oleid [options] <filename> 
 
 Options
 
 --file: The filepath to the file to process.
+```
+
+### Library Usage
+```rust
+use oleid::oleid::OleId;
+
+pub fn main() {
+  let mut oleid = OleId::new(file_path);
+  let indicators = oleid.check();
+  println!("{:#?}", indicators);
+}
 ```
 
 ## 2.OleObj
@@ -48,7 +59,7 @@ ole-common = { git = "https://github.com/marirs/ole-rs.git", branch = "master" }
 ```
 - example code
 ```rust
-use olecommon::OleFile;
+use ole::OleFile;
 
 fn main() {
     let file = "data/oledoc1.doc_";
@@ -66,7 +77,7 @@ ole-common = { git = "https://github.com/marirs/ole-rs.git", branch = "master", 
 
 - example code
 ```rust
-use olecommon::OleFile;
+use ole::OleFile;
 
 fn main() {
     let file = "data/oledoc1.doc_";

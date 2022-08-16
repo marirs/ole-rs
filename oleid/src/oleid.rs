@@ -1,4 +1,6 @@
 use std::fmt::{Debug, Formatter};
+use std::process::exit;
+use log::error;
 use ole::{OleFile, ftype::OleFileType};
 
 /// Constants for risk values.
@@ -78,7 +80,8 @@ impl OleId {
             ole: match OleFile::from_file_blocking(filename){
                 Ok(t) => Some(t),
                 _=> {
-                    panic!("Could not parse the provided file.");
+                    error!("Could not parse the provided file as an OLE file. Filename: {}", filename);
+                    exit(1);
                 }
             }
         }
