@@ -1,16 +1,15 @@
 pub mod ole_object;
 
-use std::process::exit;
+use crate::ole_object::process_file;
 use clap::{Arg, Command};
 use log::{error, Level};
 use simple_logger::init_with_level;
-use crate::ole_object::process_file;
+use std::process::exit;
 
-
-pub fn main(){
+pub fn main() {
     // Set up logger
     init_with_level(Level::Debug).unwrap();
-    
+
     // Get arguments.
     let args_matches = Command::new("OleObj")
         .about("A tool to parse OLE objects and files stored into various MS Office file formats (doc, xls, ppt, docx, xlsx, pptx, etc).")
@@ -25,11 +24,11 @@ pub fn main(){
 
     let file_path = match args_matches.value_of("file") {
         Some(t) => t,
-        _=> {
+        _ => {
             error!("File path is required.");
             exit(1);
         }
     };
-    
+
     process_file(file_path);
 }

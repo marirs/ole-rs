@@ -5,7 +5,7 @@ pub trait StringUtils {
 }
 
 impl StringUtils for String {
-    fn substring(&self, range: RangeFrom<usize>)-> String {
+    fn substring(&self, range: RangeFrom<usize>) -> String {
         let chars = self.chars().map(|x| x.to_string()).collect::<Vec<_>>();
         let mut substring = Vec::new();
         for char_index in range.start..chars.len() {
@@ -14,4 +14,4 @@ impl StringUtils for String {
         }
         substring.join("")
     }
-} 
+}

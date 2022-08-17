@@ -1,7 +1,7 @@
+use log::error;
+use ole::{ftype::OleFileType, OleFile};
 use std::fmt::{Debug, Formatter};
 use std::process::exit;
-use log::error;
-use ole::{OleFile, ftype::OleFileType};
 
 /// Constants for risk values.
 #[derive(Debug, Clone)]
@@ -13,7 +13,7 @@ pub enum Risk {
     INFO,
     UNKNOWN,
     /// If a check triggered an unexpected error.
-    ERROR
+    ERROR,
 }
 
 /// Piece of information of an `OleID` object.
@@ -26,23 +26,25 @@ pub struct Indicator {
     _type: String,
     name: Option<String>,
     description: Option<String>,
-    risk: Risk
+    risk: Risk,
 }
 
 impl Indicator {
-    pub fn new(id: &str, 
-               value: Option<&str>, 
-               _type: &str, 
-               name: Option<&str>, 
-               description: Option<&str>, 
-               risk: Risk) -> Self {
+    pub fn new(
+        id: &str,
+        value: Option<&str>,
+        _type: &str,
+        name: Option<&str>,
+        description: Option<&str>,
+        risk: Risk,
+    ) -> Self {
         Indicator {
             id: id.to_string(),
             value: value.map(|x| x.to_string()),
             _type: _type.to_string(),
             name: name.map(|x| x.to_string()),
             description: description.map(|x| x.to_string()),
-            risk
+            risk,
         }
     }
 }
@@ -63,7 +65,7 @@ impl Debug for Indicator {
 /// of the `check_` functions to just get a specific piece of info.
 pub struct OleId {
     indicators: Vec<Indicator>,
-    ole: Option<OleFile>
+    ole: Option<OleFile>,
 }
 
 impl OleId {
@@ -77,33 +79,43 @@ impl OleId {
     pub fn new(filename: &str) -> Self {
         OleId {
             indicators: Vec::new(),
-            ole: match OleFile::from_file_blocking(filename){
+            ole: match OleFile::from_file_blocking(filename) {
                 Ok(t) => Some(t),
-                _=> {
-                    error!("Could not parse the provided file as an OLE file. Filename: {}", filename);
+                _ => {
+                    error!(
+                        "Could not parse the provided file as an OLE file. Filename: {}",
+                        filename
+                    );
                     exit(1);
                 }
-            }
+            },
         }
     }
-    
+
     /// Open file and run all checks on it.
     /// returns: list of all `Indicator`s created
     pub fn check(&mut self) -> Vec<Indicator> {
         // We have a value so far but check the value of the ole file object available just to be sure.
-        let file_type = match self.ole.as_ref().cloned(){
+        let file_type = match self.ole.as_ref().cloned() {
             Some(t) => t.file_type,
-            _=> {
+            _ => {
                 panic!("The ole file is invalid.");
             }
         };
         let description = match file_type {
             OleFileType::Generic => Some("Unrecognized OLE file."),
-            _=> None
+            _ => None,
         };
-        let filetype_indicator = Indicator::new("FType", Some(format!("{:?}", file_type).as_str()), "String", Some("File format"), description, Risk::INFO);
+        let filetype_indicator = Indicator::new(
+            "FType",
+            Some(format!("{:?}", file_type).as_str()),
+            "String",
+            Some("File format"),
+            description,
+            Risk::INFO,
+        );
         self.indicators.push(filetype_indicator);
-        
+
         self.check_encrypted();
         self.check_macros();
         self.check_external_relationships();
@@ -114,11 +126,20 @@ impl OleId {
 
     /// Check whether this file is encrypted.
     pub fn check_encrypted(&mut self) -> Indicator {
-        let mut encrypted_indicator = Indicator::new("Encrypted", None, "Bool", Some("Encrypted"), Some("The file is not encrypted"), Risk::NONE);
+        let mut encrypted_indicator = Indicator::new(
+            "Encrypted",
+            None,
+            "Bool",
+            Some("Encrypted"),
+            Some("The file is not encrypted"),
+            Risk::NONE,
+        );
         if self.ole.as_ref().cloned().unwrap().encrypted {
             encrypted_indicator.value = Some("True".to_string());
             encrypted_indicator.risk = Risk::LOW;
-            encrypted_indicator.description = Some("The file is encrypted. It may be decrypted with msoffcrypto-tool".to_string());
+            encrypted_indicator.description = Some(
+                "The file is encrypted. It may be decrypted with msoffcrypto-tool".to_string(),
+            );
         }
         self.indicators.push(encrypted_indicator.clone());
         encrypted_indicator
@@ -126,9 +147,23 @@ impl OleId {
 
     /// Check whether this file contains macros (VBA and XLM/Excel 4).
     pub fn check_macros(&mut self) {
-        let macros_indicator = Indicator::new("vba", Some("No"), "String", Some("VBA Macros"), Some("This file does not contain VBA macros."), Risk::NONE);
+        let macros_indicator = Indicator::new(
+            "vba",
+            Some("No"),
+            "String",
+            Some("VBA Macros"),
+            Some("This file does not contain VBA macros."),
+            Risk::NONE,
+        );
         self.indicators.push(macros_indicator.clone());
-        let xlm_indicator = Indicator::new("xlm", Some("No"), "String", Some("XLM Macros"), Some("This file does not contain Excel 4/XLM macros."), Risk::NONE);
+        let xlm_indicator = Indicator::new(
+            "xlm",
+            Some("No"),
+            "String",
+            Some("XLM Macros"),
+            Some("This file does not contain Excel 4/XLM macros."),
+            Risk::NONE,
+        );
         self.indicators.push(xlm_indicator.clone());
         // Check XLM Macros only in excel files
         if self.ole.as_ref().cloned().unwrap().is_excel() {
@@ -137,8 +172,15 @@ impl OleId {
     }
 
     ///  Check whether this file has external relationships (remote template, OLE object, etc).
-    pub fn check_external_relationships(&mut self) -> Indicator{
-        let external_relations_indicator = Indicator::new("ExternalRelations", None, "Int", Some("External Relationships"), Some("External relationships such as remote templates, remote OLE objects, etc"), Risk::NONE);
+    pub fn check_external_relationships(&mut self) -> Indicator {
+        let external_relations_indicator = Indicator::new(
+            "ExternalRelations",
+            None,
+            "Int",
+            Some("External Relationships"),
+            Some("External relationships such as remote templates, remote OLE objects, etc"),
+            Risk::NONE,
+        );
         self.indicators.push(external_relations_indicator.clone());
         // TODO: This check is only for openxml files.
         // match self.ole.as_ref().cloned().unwrap().file_type {
@@ -151,7 +193,14 @@ impl OleId {
     /// Such a stream would be a strong indicator for embedded objects or files.
     pub fn check_object_pool(&mut self) -> Indicator {
         let mut object_pool_indicator = Indicator::new("ObjectPool", None, "Int", Some("Object Pool"), Some("Contains an ObjectPool stream, very likely to contain embedded OLE objects or files. Use oleobj to check it."), Risk::NONE);
-        if self.ole.as_ref().cloned().unwrap().list_streams().contains(&"ObjectPool".to_string()) {
+        if self
+            .ole
+            .as_ref()
+            .cloned()
+            .unwrap()
+            .list_streams()
+            .contains(&"ObjectPool".to_string())
+        {
             object_pool_indicator.value = Some("True".to_string());
             object_pool_indicator.risk = Risk::LOW;
         }
@@ -164,7 +213,13 @@ impl OleId {
         let mut flash_indicator = Indicator::new("Flash", Some("0"), "Int", Some("Flash Objects"), Some("Number of embedded Flash objects (SWF files) detected in OLE streams. Not 100% accurate, there may be false positives."), Risk::NONE);
         self.indicators.push(flash_indicator.clone());
         let found = detect_flash(self.ole.as_ref().cloned().unwrap().directory_stream_data);
-        let val = flash_indicator.value.as_ref().cloned().unwrap().parse::<i32>().unwrap();
+        let val = flash_indicator
+            .value
+            .as_ref()
+            .cloned()
+            .unwrap()
+            .parse::<i32>()
+            .unwrap();
         let new_val = val + found.len() as i32;
         flash_indicator.value = Some(new_val.to_string());
         flash_indicator
@@ -172,10 +227,14 @@ impl OleId {
 
     /// Helper function: returns an indicator if present (or None)
     pub fn get_indicator(&self, indicator_id: &str) -> Option<Indicator> {
-        return match self.indicators.iter().find(|indicator| indicator.id == indicator_id) {
+        return match self
+            .indicators
+            .iter()
+            .find(|indicator| indicator.id == indicator_id)
+        {
             Some(t) => Some(t.clone()),
-            _=> None
-        }
+            _ => None,
+        };
     }
 }
 

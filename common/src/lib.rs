@@ -23,7 +23,7 @@ use crate::{
 };
 use derivative::Derivative;
 use error::{Error, HeaderErrorType};
-use tokio::io::{AsyncReadExt};
+use tokio::io::AsyncReadExt;
 
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
@@ -52,7 +52,7 @@ impl OleFile {
         //! ## Example usage
         //! ```rust
         //! use ole::OleFile;
-        //! 
+        //!
         //! #[tokio::main]
         //! async fn main() {
         //! let file = "../data/oledoc1.doc_";
@@ -142,7 +142,7 @@ impl OleFile {
         //! ```
         self.encrypted
     }
-    
+
     pub fn is_excel(&self) -> bool {
         //! Check if the file is an excel file.
         //!
@@ -160,8 +160,8 @@ impl OleFile {
         //! ```
         return match self.file_type {
             OleFileType::Excel5 | OleFileType::Excel97 => true,
-            _=> false
-        }
+            _ => false,
+        };
     }
 
     pub fn open_stream(&self, stream_path: &[&str]) -> Result<Vec<u8>> {
@@ -479,7 +479,7 @@ impl OleFile {
 
         Ok(())
     }
-    
+
     fn initialize_mini_stream(&mut self) -> Result<()> {
         let (mut next_sector, mini_stream_size) = {
             let root_entry = &self.directory_entries[0];
